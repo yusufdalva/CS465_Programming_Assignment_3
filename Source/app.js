@@ -3,10 +3,16 @@ let canvas;
 let gl;
 let program;
 
+// View parameters
+let radius = 1.5;
+let theta  = 0.0;
+let phi    = 0.0;
+
 // LookAt parameters - Camera location
-let eye;
-let at;
-let up;
+let eye = vec3(radius*Math.sin(theta)*Math.cos(phi),
+    radius*Math.sin(theta)*Math.sin(phi), radius*Math.cos(theta));
+let at = vec3(0.0, 0.0, 0.0);
+let up = vec3(0.0, 1.0, 0.0);
 
 // Grid dimensions for the canvas
 let nRows = 128;
@@ -17,7 +23,7 @@ let data = [];
 
 // List of available materials
 let materials = [
-    {diffuse: vec4( 1.0, 0.8, 0.0, 1.0), specular: vec4( 1.0, 0.8, 0.0, 1.0 )}
+    new Material(vec4( 1.0, 1.0, 1.0, 1.0 ), vec4( 1.0, 0.8, 0.0, 1.0), vec4( 1.0, 0.8, 0.0, 1.0 ), 100.0)
 ];
 
 // Objects present in the scene
@@ -26,10 +32,14 @@ let objects = [
 ];
 
 // Ambient light
-let ambient;
+let lights = [
+    new Light(vec4(1.0, 1.0, 1.0, 0.0 ), vec4(0.2, 0.2, 0.2, 1.0 ), vec4( 1.0, 1.0, 1.0, 1.0 ))
+];
 
 // Ray tracing iteration limit
 const iterLimit = 5;
+// Background Color
+const backgroundColor = vec4(0.8, 0.8, 0.8, 1.0);
 
 /*
 * vertex data structure:
@@ -81,16 +91,99 @@ function generateCubeVertices(center) {
 
 }
 
+function reflect(point, normal, p){
+    let l = normalize(point - p);
+    return 2 * normal * dot(l, normal) - l;
+}
+
+function transmit(point,normal,p,n1,n2){
+    let n = n1/n2;
+    let ray = point - p;
+    let c1 = -dot(ray,normal);
+    let c2 = Math.sqrt(1- n^2 * (1 - c1^2));
+    return (n * ray) + (n * c1 - c2) * normal;
+}
+
+function phong(point, rayOrigin, normal, reflection, material, light) {
+    console.assert(Math.sqrt(dot(normal, normal)) === 1.0); // Normalization check
+    console.assert(Math.sqrt(dot(reflection, reflection)) === 1.0); // Normalization check
+    // Computing the ambient term
+    let ambient = mult(light.ambient, material.ambient);
+    // Computing the diffuse term
+    let illDir = normalize(point - rayOrigin); // direction of I
+    let sourceCos = dot(illDir, normal);
+    let diffuse = mult(light.diffuse, material.diffuse);
+    diffuse = scale(sourceCos, diffuse);
+    // Computing the specular term
+    let viewerDir = normalize(point - eye);
+    let specular = mult(light.specular, material.specular);
+    specular = scale(Math.max(Math.pow(dot(reflection, viewerDir), material.shininess), 0.0), specular);
+    return ambient + diffuse + specular;
+}
+
 // Creating a cube as triangles. Will not be sent to shaders, just to determine the triangle surfaces
 function createCube() {
     // Main structure: First define the triangle as a triad, then compute and store the normal
 
 }
 
-function rayTrace(origin, dirVector) {
+function findClosestIntersection(origin, dirVector) {
+    // What to do:
+    // Traverse through all the objects and compare the t values
+    for (let objIdx = 0; objIdx < objects.length; objIdx++) {
+        // TODO - Find distances as t and take the min
+        if (objects[objIdx].type === "sphere") {
+
+        } else if (objects[objIdx].type === "cone") {
+
+        } else if (objects[objIdx].type === "triangle") {
+
+        }
+    }
+    // Will return an intersection data structure
+    let intersection = {
+        point: null,
+        type: null,
+        normal: null,
+        ambient: null,
+        diffuse: null,
+        specular: null,
+    };
+    return vec3();
+}
+
+function rayTrace(origin, dirVector, iterCount) {
     // origin corresponds to p in p + t * d
     // dirVector corresponds to d in p + t * d
-    return 0
+    if (iterCount > iterLimit) {
+        return backgroundColor; // Background Color
+    }
+    // TODO - Implement Ray Casting for each ray
+    let intersection = findClosestIntersection(origin, dirVector);
+    // Intersection data structure:
+    /* Object with:
+    * point: Intersection point
+    * type: "light" or object type (sphere, cone, cube)
+    * normal: Normal vector of intersection
+    * ambient: Ambient component of material or light
+    * diffuse: Diffuse component of material or light
+    * specular: Specular component of material or light
+    * */
+    if (intersection.type === "light") {
+        return [intersection.ambient, intersection.diffuse, intersection.specular];
+    }
+    if (!intersection) {
+        return backgroundColor; // Background Color
+    }
+    let normal = intersection.normal;
+    let reflection = reflect(intersection, normal);
+    let transmission= transmit(intersection, normal);
+
+    let local = phong(intersection.point, normal, transmission);
+    let reflected = rayTrace(intersection.point, reflection, iterCount + 1);
+    let transmitted = rayTrace(intersection.point, transmission, iterCount + 1);
+
+    return (local + reflected + transmitted);
 }
 
 // Ray tracing function
@@ -99,8 +192,9 @@ function trace() {
     for (let rowIdx = 0; rowIdx < nRows; rowIdx++) {
         data[rowIdx] = [];
         for (let colIdx = 0; colIdx < nColumns; colIdx++) {
-            // TODO - Compute starting p and d
-            data[rowIdx][colIdx] = rayTrace();
+            let p = vec3(2 * (rowIdx / nRows) - 1.0, 2 * (colIdx / nColumns) - 1.0, 0.0);
+            let d = normalize(p - eye);
+            data[rowIdx][colIdx] = rayTrace(p, d, 0);
         }
     }
 }
