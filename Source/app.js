@@ -27,12 +27,13 @@ let data = new Uint8ClampedArray(nRows * nColumns * 3);
 
 // List of available materials
 let materials = [
-    new Material(vec4( 1.0, 1.0, 1.0, 1.0 ), vec4( 1.0, 1.0, 1.0, 1.0), vec4( 1.0, 0.5, 0.3, 1.0 ), 10.0, 0.9)
+    new Material(vec4( 0.5, 1.0, 1.0, 1.0 ), vec4( 1.0, 1.0, 1.0, 1.0), vec4( 0.8, 0.9, 0.7, 1.0 ), 50.0, 0.9)
 ];
 
 // Objects present in the scene
+let cube = new Cube();
 let objects = [
-    {type: "sphere", center: vec3(0.0, 0.0, 0.0), radius: 0.5, materialIdx: 0}
+    {type: "sphere", center: vec3(0.0, 0.0, 0.0), radius: 0.75, materialIdx: 0}    
 ];
 
 // Ambient light
@@ -83,7 +84,7 @@ function getConeIntersection(x, z, r, h, z0) {
 }
 
 // Tests whether the point is inside a triangle - for polygonal prism in app
-function pointInTriangleTest(a, b, c, x) {
+function pointInTriangleTest(a, b, c, point) {
     // a,b,c - sides of triangle
     // x - point to check
     // Compute vectors        
@@ -111,14 +112,36 @@ function getRayPlaneIntersection(p,d,planeNormal,D){
   if(denominator> 1e-6){
     a = p - D;
     t = dot(a,planeNormal)/denominator;
-    return t>=0;
+    return t;
   }
-  return false;
+  return -1;
 }
 
-function getCubeIntersection(p,d){
+function getCubeIntersection(p,d,cube){
   //for every plane check if ray intersects with the plane
-  
+  let minDis = 10000;
+  let a,b,c,d,interPoint;
+  for(i = 0; i < 6; i++){
+    let point = getRayPlaneIntersection(p,d,cube.sides[i].planeNormal, cube.sides[i].D);
+    if( point != -1){
+        let distance = distance(p,point);
+        if(distance<minDis){
+          minDis = dis;
+          a = cube.sides[i].a;
+          b = cube.sides[i].b;
+          c = cube.sides[i].c;
+          d = cube.sides[i].d;
+          interPoint = point;
+        }
+    }
+  }
+  if(minDis != 10000){
+    //check for two triangles in that plane
+    if(pointInTriangleTest(a,b,c,interPoint) || pointInTriangleTest(a,c,d,interPoint)){
+      return interPoint;
+    }
+  }
+  return -1;
 }
 
 function generateCubeVertices(center) {
@@ -147,7 +170,7 @@ function phong(point, rayOrigin, normal, reflection, material, light) {
     let ambient = mult(light.ambient, material.ambient);
     //console.log("Ambient ", ambient);
     // Computing the diffuse term
-    let illDir = normalize(subtract(point, rayOrigin)); // direction of I
+    let illDir = normalize(subtract(light.position,point)); // direction of I
     let sourceCos = dot(illDir, normal);
     let diffuse = mult(light.diffuse, material.diffuse);
     diffuse = scale(sourceCos, diffuse);
@@ -182,7 +205,9 @@ function findClosestIntersection(origin, dirVector) {
                     t = distance;
                     closestObject = objects[objIdx];
                     point = add(origin, scale(t, dirVector));
+                    
                     normal = point;
+                    
                     intersection = {
                         point: point,
                         type: closestObject.type,
@@ -232,13 +257,13 @@ function trace() {
     for (let colIdx = 0; colIdx < nColumns; colIdx++) {
         for (let rowIdx = 0; rowIdx < nRows; rowIdx++) {
            // let p = vec4(2 * (rowIdx / nRows) - 1.0, 2 * (colIdx / nColumns) - 1.0, 0.0, 1.0);
-           let p = vec4(2 * (rowIdx / nRows) - 1.0, 2 * (colIdx / nColumns) - 1.0, -2.0, 1.0); 
-           let d = normalize(subtract(p, eye));
-            let color = rayTrace(p, d, lights[0],0);
-            console.log("**********COLORRR ", color);
-            data[(colIdx * nRows + rowIdx) * 3] = 255 * color[0];
-            data[(colIdx * nRows + rowIdx) * 3 + 1] = 255 * color[1];
-            data[(colIdx * nRows + rowIdx) * 3 + 2] = 255 * color[2];
+          let p = vec4(2 * (rowIdx / nRows) - 1.0, 2 * (colIdx / nColumns) - 1.0, -2.0, 1.0); 
+          let d = normalize(subtract(p, eye));
+          let color = rayTrace(p, d, lights[0],0);
+          console.log("**********COLORRR ", color);
+          data[(colIdx * nRows + rowIdx) * 3] = 255 * color[0];
+          data[(colIdx * nRows + rowIdx) * 3 + 1] = 255 * color[1];
+          data[(colIdx * nRows + rowIdx) * 3 + 2] = 255 * color[2];
         }
     }
 }
