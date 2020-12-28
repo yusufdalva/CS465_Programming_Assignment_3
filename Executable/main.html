@@ -5,15 +5,25 @@
     <title>Assignment 3: Ray Tracer</title>
     <!-- Vertex Shader -->
     <script type="x-shader/x-vertex" id="vertex-shader">
-        void main() {
+        attribute vec2 vPosition;
+        attribute vec2 vTexCoord;
+        varying vec2 fTexCoord;
 
+        void main() {
+            fTexCoord = vTexCoord;
+            gl_Position = vec4(vPosition.xy, 0.0, 1.0);
         }
     </script>
 
     <!-- Fragment Shader -->
     <script type="x-shader/x-fragment" id="fragment-shader">
-        void main() {
+        precision mediump float;
+        varying vec2 fTexCoord;
+        uniform sampler2D texture;
 
+        void main() {
+            vec4 color = texture2D(texture, fTexCoord);
+            gl_FragColor = color;
         }
     </script>
 
@@ -24,6 +34,7 @@
     <script type="text/javascript" src="../Source/Commons/MV.js"></script>
 
     <!-- Ray Tracing Implementation -->
+    <script type="text/javascript" src="../Source/objects.js"></script>
     <script type="text/javascript" src="../Source/app.js"></script>
 </head>
 <body>

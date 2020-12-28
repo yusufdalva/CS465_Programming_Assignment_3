@@ -3,14 +3,17 @@ let canvas;
 let gl;
 let program;
 
+// Texture to send
+let texture;
+
 // View parameters
 let radius = 1.5;
 let theta  = 0.0;
 let phi    = 0.0;
 
 // LookAt parameters - Camera location
-let eye = vec3(radius*Math.sin(theta)*Math.cos(phi),
-    radius*Math.sin(theta)*Math.sin(phi), radius*Math.cos(theta));
+let eye = vec4(radius*Math.sin(theta)*Math.cos(phi),
+    radius*Math.sin(theta)*Math.sin(phi), radius*Math.cos(theta), 1.0);
 let at = vec3(0.0, 0.0, 0.0);
 let up = vec3(0.0, 1.0, 0.0);
 
@@ -19,11 +22,11 @@ let nRows = 128;
 let nColumns = 128;
 
 // Data for canvas pixels - traced by trace() function
-let data = [];
+let data = new Uint8ClampedArray(nRows * nColumns * 3);
 
 // List of available materials
 let materials = [
-    new Material(vec4( 1.0, 1.0, 1.0, 1.0 ), vec4( 1.0, 0.8, 0.0, 1.0), vec4( 1.0, 0.8, 0.0, 1.0 ), 100.0)
+    new Material(vec4( 1.0, 1.0, 1.0, 1.0 ), vec4( 1.0, 0.8, 0.0, 1.0), vec4( 1.0, 0.8, 0.0, 1.0 ), 100.0, 0.9)
 ];
 
 // Objects present in the scene
@@ -33,13 +36,15 @@ let objects = [
 
 // Ambient light
 let lights = [
-    new Light(vec4(1.0, 1.0, 1.0, 0.0 ), vec4(0.2, 0.2, 0.2, 1.0 ), vec4( 1.0, 1.0, 1.0, 1.0 ))
+    new Light(vec4(1.0, 1.0, 1.0, 0.0 ), vec4(0.2, 0.2, 0.2, 1.0 ), vec4( 1.0, 1.0, 1.0, 1.0 ), vec4( 1.0, 1.0, 1.0, 1.0 ))
 ];
 
 // Ray tracing iteration limit
 const iterLimit = 5;
 // Background Color
 const backgroundColor = vec4(0.8, 0.8, 0.8, 1.0);
+// Intersection threshold
+let sphereEpsilon = 0.0;
 
 /*
 * vertex data structure:
@@ -52,16 +57,15 @@ const backgroundColor = vec4(0.8, 0.8, 0.8, 1.0);
 function getSphereIntersection(p, d, r, center) {
     // Sphere eqn: (x-x0)^2 + (y-y0)^2 + (z - z0)^2 - r^2 = 0
     console.assert(Math.pow(d[0], 2) + Math.pow(d[1], 2) + Math.pow(d[2], 2) === 1.0);
-    let a = 1;
     let b = 2 * ((p[0] - center[0]) * d[0] + (p[1] - center[1]) * d[1] + (p[2] - center[2]) * d[2]);
     let c = Math.pow(p[0] - center[0], 2) + Math.pow(p[1] - center[1], 2) + Math.pow(p[2] - center[2], 2) - Math.pow(r, 2);
     let delta = Math.pow(b, 2) - 4 * c;
-    if (delta < 0) {
+    if (delta < sphereEpsilon) {
         return null;
     }
     let t1, t2;
-    t1 = (-b + Math.sqrt(Math.pow(b, 2) - 4 * c)) / (2 * a);
-    t2 = (-b - Math.sqrt(Math.pow(b, 2) - 4 * c)) / (2 * a);
+    t1 = (-b + Math.sqrt(Math.pow(b, 2) - 4 * c)) / 2;
+    t2 = (-b - Math.sqrt(Math.pow(b, 2) - 4 * c)) / 2;
     if (t1 < 0 && t2 < 0) {
         return null;
     }
@@ -92,13 +96,15 @@ function generateCubeVertices(center) {
 }
 
 function reflect(point, normal, p){
-    let l = normalize(point - p);
-    return 2 * normal * dot(l, normal) - l;
+    let l = normalize(subtract(point,p));
+    console.log(normal);
+    console.log(dot(l, normal));
+    return subtract(scale(2 * dot(l, normal), normal), l);
 }
 
 function transmit(point,normal,p,n1,n2){
     let n = n1/n2;
-    let ray = point - p;
+    let ray = subtract(point,p);
     let c1 = -dot(ray,normal);
     let c2 = Math.sqrt(1- n^2 * (1 - c1^2));
     return (n * ray) + (n * c1 - c2) * normal;
@@ -110,12 +116,12 @@ function phong(point, rayOrigin, normal, reflection, material, light) {
     // Computing the ambient term
     let ambient = mult(light.ambient, material.ambient);
     // Computing the diffuse term
-    let illDir = normalize(point - rayOrigin); // direction of I
+    let illDir = normalize(subtract(point, rayOrigin)); // direction of I
     let sourceCos = dot(illDir, normal);
     let diffuse = mult(light.diffuse, material.diffuse);
     diffuse = scale(sourceCos, diffuse);
     // Computing the specular term
-    let viewerDir = normalize(point - eye);
+    let viewerDir = normalize(subtract(point,eye));
     let specular = mult(light.specular, material.specular);
     specular = scale(Math.max(Math.pow(dot(reflection, viewerDir), material.shininess), 0.0), specular);
     return ambient + diffuse + specular;
@@ -130,58 +136,59 @@ function createCube() {
 function findClosestIntersection(origin, dirVector) {
     // What to do:
     // Traverse through all the objects and compare the t values
+    let t = Number.POSITIVE_INFINITY;
+    let closestObject;
+    let normal;
+    let point;
+    let intersection = null;
     for (let objIdx = 0; objIdx < objects.length; objIdx++) {
-        // TODO - Find distances as t and take the min
         if (objects[objIdx].type === "sphere") {
-
-        } else if (objects[objIdx].type === "cone") {
-
-        } else if (objects[objIdx].type === "triangle") {
-
+            let distance = getSphereIntersection(origin, dirVector, objects[objIdx].radius, objects[objIdx].center);
+            if (distance !== null) {
+                if (distance < t) {
+                    t = distance;
+                    closestObject = objects[objIdx];
+                    point = add(origin, scale(t, dirVector));
+                    normal = point;
+                    intersection = {
+                        point: point,
+                        type: closestObject.type,
+                        normal: normal,
+                        material: materials[closestObject.materialIdx]
+                    };
+                }
+            }
         }
     }
     // Will return an intersection data structure
-    let intersection = {
-        point: null,
-        type: null,
-        normal: null,
-        ambient: null,
-        diffuse: null,
-        specular: null,
-    };
-    return vec3();
+    return intersection;
 }
 
-function rayTrace(origin, dirVector, iterCount) {
+function rayTrace(origin, dirVector, light, iterCount) {
     // origin corresponds to p in p + t * d
     // dirVector corresponds to d in p + t * d
     if (iterCount > iterLimit) {
-        return backgroundColor; // Background Color
+        return vec4(0.0, 0.0, 0.0, 1.0);
     }
-    // TODO - Implement Ray Casting for each ray
     let intersection = findClosestIntersection(origin, dirVector);
     // Intersection data structure:
     /* Object with:
     * point: Intersection point
     * type: "light" or object type (sphere, cone, cube)
     * normal: Normal vector of intersection
-    * ambient: Ambient component of material or light
-    * diffuse: Diffuse component of material or light
-    * specular: Specular component of material or light
+    * material: Material properties of the object
     * */
-    if (intersection.type === "light") {
-        return [intersection.ambient, intersection.diffuse, intersection.specular];
-    }
-    if (!intersection) {
-        return backgroundColor; // Background Color
+    if (intersection === null) {
+        return vec4(0.0, 0.0, 0.0, 1.0);
     }
     let normal = intersection.normal;
-    let reflection = reflect(intersection, normal);
-    let transmission= transmit(intersection, normal);
+    let reflection = reflect(intersection.point, normalize(normal), origin);
+    let transmission= transmit(intersection.point, normalize(normal), origin, 1.0, intersection.material.density);
 
-    let local = phong(intersection.point, normal, transmission);
-    let reflected = rayTrace(intersection.point, reflection, iterCount + 1);
-    let transmitted = rayTrace(intersection.point, transmission, iterCount + 1);
+    // point, rayOrigin, normal, reflection, material, light
+    let local = phong(intersection.point, origin, normal, reflection, intersection.material, light);
+    let reflected = rayTrace(intersection.point, reflection, light,iterCount + 1);
+    let transmitted = rayTrace(intersection.point, transmission, light,iterCount + 1);
 
     return (local + reflected + transmitted);
 }
@@ -189,12 +196,15 @@ function rayTrace(origin, dirVector, iterCount) {
 // Ray tracing function
 function trace() {
     // Grid logic -> nRows x nColumns grid
-    for (let rowIdx = 0; rowIdx < nRows; rowIdx++) {
-        data[rowIdx] = [];
-        for (let colIdx = 0; colIdx < nColumns; colIdx++) {
-            let p = vec3(2 * (rowIdx / nRows) - 1.0, 2 * (colIdx / nColumns) - 1.0, 0.0);
-            let d = normalize(p - eye);
-            data[rowIdx][colIdx] = rayTrace(p, d, 0);
+    for (let colIdx = 0; colIdx < nColumns; colIdx++) {
+        for (let rowIdx = 0; rowIdx < nRows; rowIdx++) {
+            let p = vec4(2 * (rowIdx / nRows) - 1.0, 2 * (colIdx / nColumns) - 1.0, 0.0, 1.0);
+            let d = normalize(subtract(p, eye));
+            let color = rayTrace(p, d, lights[0],0);
+            console.log(color);
+            data[(colIdx * nRows + rowIdx) * 3] = 255 * color[0];
+            data[(colIdx * nRows + rowIdx) * 3 + 1] = 255 * color[1];
+            data[(colIdx * nRows + rowIdx) * 3 + 2] = 255 * color[2];
         }
     }
 }
@@ -210,10 +220,73 @@ function init() {
 
     // Connecting Shaders
     program = initShaders(gl, "vertex-shader", "fragment-shader");
+
+    // Texture vertices
+    let pointsArray = [];
+    let texCoords = [];
+
+    // Texture Coordinates
+    pointsArray.push(vec2(-1, -1));
+    pointsArray.push(vec2(-1, 1));
+    pointsArray.push(vec2(1, 1));
+    pointsArray.push(vec2(1, -1));
+
+    texCoords.push(vec2(0, 0));
+    texCoords.push(vec2(0, 1));
+    texCoords.push(vec2(1, 1));
+    texCoords.push(vec2(1, 0));
+
+    // Sending data to shaders
+    // Texture coordinates
+    let texBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, texBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, flatten(texCoords), gl.STATIC_DRAW);
+
+    let vTexCoord = gl.getAttribLocation(program, "vTexCoord");
+    gl.vertexAttribPointer(vTexCoord, 2, gl.FLOAT, false, 0,0);
+    gl.enableVertexAttribArray(vTexCoord);
+
+    // Vertex coordinates for texture
+    let posBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, flatten(pointsArray), gl.STATIC_DRAW);
+
+    let vPosition = gl.getAttribLocation(program, "vPosition");
+    gl.vertexAttribPointer(vPosition, 2, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(vPosition);
+
+    // Texture setup
+    texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    // Texture Parameters
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+
+    render();
 }
 
 function render() {
+    trace();
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGB,
+        nColumns,
+        nRows,
+        0,
+        gl.RGB,
+        gl.UNSIGNED_BYTE,
+        data
+    );
 
+    gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+
+    requestAnimFrame(render);
 }
 
 window.onload = init;
