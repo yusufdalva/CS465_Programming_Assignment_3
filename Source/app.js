@@ -12,35 +12,36 @@ let theta  = 0.0;
 let phi    = 0.0;
 
 // LookAt parameters - Camera location
-let eye = vec4(radius*Math.sin(theta)*Math.cos(phi),
-    radius*Math.sin(theta)*Math.sin(phi), radius*Math.cos(theta), 1.0);
+//let eye = vec4(radius*Math.sin(theta)*Math.cos(phi),
+  //  radius*Math.sin(theta)*Math.sin(phi), radius*Math.cos(theta), 1.0);
+let eye = vec4(0.0,0.0,-3.0,1.0);
 let at = vec3(0.0, 0.0, 0.0);
 let up = vec3(0.0, 1.0, 0.0);
 
 // Grid dimensions for the canvas
-let nRows = 512;
-let nColumns = 512;
+let nRows = 256;
+let nColumns = 256;
 
 // Data for canvas pixels - traced by trace() function
 let data = new Uint8ClampedArray(nRows * nColumns * 3);
 
 // List of available materials
 let materials = [
-    new Material(vec4( 1.0, 1.0, 1.0, 1.0 ), vec4( 1.0, 0.8, 0.0, 1.0), vec4( 1.0, 0.8, 0.0, 1.0 ), 100.0, 0.9)
+    new Material(vec4( 1.0, 1.0, 1.0, 1.0 ), vec4( 1.0, 1.0, 1.0, 1.0), vec4( 1.0, 0.5, 0.3, 1.0 ), 10.0, 0.9)
 ];
 
 // Objects present in the scene
 let objects = [
-    {type: "sphere", center: vec3(0.0, 0.0, 0.0), radius: 1.0, materialIdx: 0}
+    {type: "sphere", center: vec3(0.0, 0.0, 0.0), radius: 0.5, materialIdx: 0}
 ];
 
 // Ambient light
 let lights = [
-    new Light(vec4(1.0, 1.0, 1.0, 0.0 ), vec4(0.2, 0.2, 0.2, 1.0 ), vec4( 1.0, 1.0, 1.0, 1.0 ), vec4( 1.0, 1.0, 1.0, 1.0 ))
+    new Light(vec4(1.0, 1.0, -3.0, 0.0 ), vec4(0.2, 0.2, 0.2, 1.0 ), vec4( 1.0, 1.0, 1.0, 1.0 ), vec4( 1.0, 1.0, 1.0, 1.0 ))
 ];
 
 // Ray tracing iteration limit
-const iterLimit = 2;
+const iterLimit = 3;
 // Background Color
 const backgroundColor = vec4(0.8, 0.8, 0.8, 1.0);
 // Intersection threshold
@@ -85,10 +86,39 @@ function getConeIntersection(x, z, r, h, z0) {
 function pointInTriangleTest(a, b, c, x) {
     // a,b,c - sides of triangle
     // x - point to check
+    // Compute vectors        
+  v0 = c - a
+  v1 = b - a
+  v2 = point - a
+
+  // Compute dot products
+  dot00 = dot(v0, v0)
+  dot01 = dot(v0, v1)
+  dot02 = dot(v0, v2)
+  dot11 = dot(v1, v1)
+  dot12 = dot(v1, v2)
+
+  // Compute barycentric coordinates
+  denominator = (dot00 * dot11 - dot01 * dot01)
+  u = (dot11 * dot02 - dot01 * dot12) / denominator
+  v = (dot00 * dot12 - dot01 * dot02) /denominator
+  // Check if point is in triangle
+  return (u >= 0) && (v >= 0) && (u + v < 1)
 }
 
-function getCubeIntersection() {
+function getRayPlaneIntersection(p,d,planeNormal,D){
+  denominator = dot(planeNormal,d);
+  if(denominator> 1e-6){
+    a = p - D;
+    t = dot(a,planeNormal)/denominator;
+    return t>=0;
+  }
+  return false;
+}
 
+function getCubeIntersection(p,d){
+  //for every plane check if ray intersects with the plane
+  
 }
 
 function generateCubeVertices(center) {
@@ -109,20 +139,25 @@ function transmit(point,normal,p,n1,n2){
 }
 
 function phong(point, rayOrigin, normal, reflection, material, light) {
-    console.assert(Math.sqrt(dot(normal, normal)) === 1.0); // Normalization check
-    console.assert(Math.sqrt(dot(reflection, reflection)) === 1.0); // Normalization check
+    //console.assert(Math.sqrt(dot(normal, normal)) === 1.0); // Normalization check
+    //console.assert(Math.sqrt(dot(reflection, reflection)) === 1.0); // Normalization check
+   // console.log("**NORMALL ",dot(normal,normal));
+    //console.log("REFLECTION", dot(reflection,reflection));
     // Computing the ambient term
     let ambient = mult(light.ambient, material.ambient);
+    //console.log("Ambient ", ambient);
     // Computing the diffuse term
     let illDir = normalize(subtract(point, rayOrigin)); // direction of I
     let sourceCos = dot(illDir, normal);
     let diffuse = mult(light.diffuse, material.diffuse);
     diffuse = scale(sourceCos, diffuse);
+   // console.log("DIIFUSE ", diffuse);
     // Computing the specular term
     let viewerDir = normalize(subtract(point,eye));
     let specular = mult(light.specular, material.specular);
     specular = scale(Math.max(Math.pow(dot(reflection, viewerDir), material.shininess), 0.0), specular);
-    return add(add(ambient, diffuse), specular);
+    //console.log("SPECULAR ",specular);
+    return add(add(ambient,diffuse),specular);
 }
 
 // Creating a cube as triangles. Will not be sent to shaders, just to determine the triangle surfaces
@@ -181,14 +216,14 @@ function rayTrace(origin, dirVector, light, iterCount) {
     }
     let normal = intersection.normal;
     let reflection = reflect(intersection.point, normalize(normal), origin);
-    let transmission= transmit(intersection.point, normalize(normal), origin, 1.0, intersection.material.density);
+    //let transmission= transmit(intersection.point, normalize(normal), origin, 1.0, intersection.material.density);
 
     // point, rayOrigin, normal, reflection, material, light
     let local = phong(intersection.point, origin, normal, reflection, intersection.material, light);
     let reflected = rayTrace(intersection.point, reflection, light,iterCount + 1);
-    let transmitted = rayTrace(intersection.point, transmission, light,iterCount + 1);
+    //let transmitted = rayTrace(intersection.point, transmission, light,iterCount + 1);
 
-    return add(add(local, reflected), transmitted);
+    return add(local, reflected);
 }
 
 // Ray tracing function
@@ -196,10 +231,11 @@ function trace() {
     // Grid logic -> nRows x nColumns grid
     for (let colIdx = 0; colIdx < nColumns; colIdx++) {
         for (let rowIdx = 0; rowIdx < nRows; rowIdx++) {
-            let p = vec4(2 * (rowIdx / nRows) - 1.0, 2 * (colIdx / nColumns) - 1.0, 0.0, 1.0);
-            let d = normalize(subtract(p, eye));
+           // let p = vec4(2 * (rowIdx / nRows) - 1.0, 2 * (colIdx / nColumns) - 1.0, 0.0, 1.0);
+           let p = vec4(2 * (rowIdx / nRows) - 1.0, 2 * (colIdx / nColumns) - 1.0, -2.0, 1.0); 
+           let d = normalize(subtract(p, eye));
             let color = rayTrace(p, d, lights[0],0);
-            console.log(color);
+            console.log("**********COLORRR ", color);
             data[(colIdx * nRows + rowIdx) * 3] = 255 * color[0];
             data[(colIdx * nRows + rowIdx) * 3 + 1] = 255 * color[1];
             data[(colIdx * nRows + rowIdx) * 3 + 2] = 255 * color[2];
