@@ -18,8 +18,8 @@ let at = vec3(0.0, 0.0, 0.0);
 let up = vec3(0.0, 1.0, 0.0);
 
 // Grid dimensions for the canvas
-let nRows = 128;
-let nColumns = 128;
+let nRows = 512;
+let nColumns = 512;
 
 // Data for canvas pixels - traced by trace() function
 let data = new Uint8ClampedArray(nRows * nColumns * 3);
@@ -40,7 +40,7 @@ let lights = [
 ];
 
 // Ray tracing iteration limit
-const iterLimit = 5;
+const iterLimit = 2;
 // Background Color
 const backgroundColor = vec4(0.8, 0.8, 0.8, 1.0);
 // Intersection threshold
@@ -97,8 +97,6 @@ function generateCubeVertices(center) {
 
 function reflect(point, normal, p){
     let l = normalize(subtract(point,p));
-    console.log(normal);
-    console.log(dot(l, normal));
     return subtract(scale(2 * dot(l, normal), normal), l);
 }
 
@@ -107,7 +105,7 @@ function transmit(point,normal,p,n1,n2){
     let ray = subtract(point,p);
     let c1 = -dot(ray,normal);
     let c2 = Math.sqrt(1- n^2 * (1 - c1^2));
-    return (n * ray) + (n * c1 - c2) * normal;
+    return add(scale(n,ray),scale((n * c1 - c2),normal));
 }
 
 function phong(point, rayOrigin, normal, reflection, material, light) {
@@ -124,7 +122,7 @@ function phong(point, rayOrigin, normal, reflection, material, light) {
     let viewerDir = normalize(subtract(point,eye));
     let specular = mult(light.specular, material.specular);
     specular = scale(Math.max(Math.pow(dot(reflection, viewerDir), material.shininess), 0.0), specular);
-    return ambient + diffuse + specular;
+    return add(add(ambient, diffuse), specular);
 }
 
 // Creating a cube as triangles. Will not be sent to shaders, just to determine the triangle surfaces
@@ -190,7 +188,7 @@ function rayTrace(origin, dirVector, light, iterCount) {
     let reflected = rayTrace(intersection.point, reflection, light,iterCount + 1);
     let transmitted = rayTrace(intersection.point, transmission, light,iterCount + 1);
 
-    return (local + reflected + transmitted);
+    return add(add(local, reflected), transmitted);
 }
 
 // Ray tracing function
@@ -220,6 +218,7 @@ function init() {
 
     // Connecting Shaders
     program = initShaders(gl, "vertex-shader", "fragment-shader");
+    gl.useProgram( program );
 
     // Texture vertices
     let pointsArray = [];
@@ -286,7 +285,7 @@ function render() {
 
     gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
 
-    requestAnimFrame(render);
+    //requestAnimFrame(render);
 }
 
 window.onload = init;
