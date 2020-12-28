@@ -14,7 +14,7 @@ let phi    = 0.0;
 // LookAt parameters - Camera location
 //let eye = vec4(radius*Math.sin(theta)*Math.cos(phi),
   //  radius*Math.sin(theta)*Math.sin(phi), radius*Math.cos(theta), 1.0);
-let eye = vec4(0.0,0.0,-3.0,1.0);
+let eye = vec4(1.0,0.0,-3.0,1.0);
 let at = vec3(0.0, 0.0, 0.0);
 let up = vec3(0.0, 1.0, 0.0);
 
@@ -27,13 +27,15 @@ let data = new Uint8ClampedArray(nRows * nColumns * 3);
 
 // List of available materials
 let materials = [
+    new Material(vec4( 0.5, 1.0, 1.0, 1.0 ), vec4( 1.0, 1.0, 1.0, 1.0), vec4( 0.8, 0.9, 0.7, 1.0 ), 50.0, 0.9),
     new Material(vec4( 0.5, 1.0, 1.0, 1.0 ), vec4( 1.0, 1.0, 1.0, 1.0), vec4( 0.8, 0.9, 0.7, 1.0 ), 50.0, 0.9)
 ];
 
 // Objects present in the scene
-
+let cube = new Cube();
 let objects = [
-    {type: "sphere", center: vec3(0.0, 0.0, 0.0), radius: 0.75, materialIdx: 0}    
+    {type: "sphere", center: vec3(0.0, 0.0, 0.0), radius: 0.5, materialIdx: 0},
+    {type: "cube", obj : cube, materialIdx: 1}   
 ];
 
 // Ambient light
@@ -42,7 +44,7 @@ let lights = [
 ];
 
 // Ray tracing iteration limit
-const iterLimit = 3;
+const iterLimit = 1;
 // Background Color
 const backgroundColor = vec4(0.8, 0.8, 0.8, 1.0);
 // Intersection threshold
@@ -87,10 +89,11 @@ function getConeIntersection(x, z, r, h, z0) {
 function pointInTriangleTest(a, b, c, point) {
     // a,b,c - sides of triangle
     // x - point to check
-    // Compute vectors        
-  v0 = c - a
-  v1 = b - a
-  v2 = point - a
+    // Compute vectors     
+  
+  v0 = subtract(c,a);
+  v1 = subtract(b,a);
+  v2 = subtract(point, a);
 
   // Compute dot products
   dot00 = dot(v0, v0)
@@ -103,34 +106,52 @@ function pointInTriangleTest(a, b, c, point) {
   denominator = (dot00 * dot11 - dot01 * dot01)
   u = (dot11 * dot02 - dot01 * dot12) / denominator
   v = (dot00 * dot12 - dot01 * dot02) /denominator
+  //u = subtract(mult(dot11,dot02),mult(dot01,dot12))/denominator;
+  //v = subtract(mult(dot00,dot12),mult(dot01,dot02))/denominator;
+  console.log("U is ",u);
+  console.log("v is ",v);
   // Check if point is in triangle
   return (u >= 0) && (v >= 0) && (u + v < 1)
 }
 
 function getRayPlaneIntersection(p,d,planeNormal,D){
+    
   denominator = dot(planeNormal,d);
   if(denominator> 1e-6){
-    a = p - D;
+    //console.log("bigs",D);
+    a = subtract(p, D);
+    
     t = dot(a,planeNormal)/denominator;
+    
     return t;
   }
   return -1;
 }
-
+function findDistance(v1,v2){
+  let diff = 0;
+  for(let i = 0; i < 4; i++){
+    diff += (v1[i],v2[i])^2;
+  }
+  return Math.sqrt(diff);
+}
 function getCubeIntersection(p,d,cube){
   //for every plane check if ray intersects with the plane
+  
   let minDis = 10000;
-  let a,b,c,vd,interPoint;
+  let a,b,c,vd,interPoint,interPlane;
   for(i = 0; i < 6; i++){
-    let point = getRayPlaneIntersection(p,d,cube.sides[i].planeNormal, cube.sides[i].D);
+    let how_far = getRayPlaneIntersection(p,d,cube.sides[i].planeNormal, cube.sides[i].D);
+    let point = add(p,scale(how_far,d))
     if( point != -1){
-        let distance = distance(p,point);
+      
+        let distance = findDistance(p,point);
         if(distance<minDis){
-          minDis = dis;
+          minDis = distance;
           a = cube.sides[i].a;
           b = cube.sides[i].b;
           c = cube.sides[i].c;
           vd = cube.sides[i].d;
+          interPlane = cube.sides[i].planeNormal;
           interPoint = point;
         }
     }
@@ -138,7 +159,8 @@ function getCubeIntersection(p,d,cube){
   if(minDis != 10000){
     //check for two triangles in that plane
     if(pointInTriangleTest(a,b,c,interPoint) || pointInTriangleTest(a,c,vd,interPoint)){
-      return interPoint;
+      
+      return [interPoint,interPlane];
     }
   }
   return -1;
@@ -158,7 +180,7 @@ function transmit(point,normal,p,n1,n2){
     let ray = subtract(point,p);
     let c1 = -dot(ray,normal);
     let c2 = Math.sqrt(1- n^2 * (1 - c1^2));
-    return add(scale(n,ray),scale((n * c1 - c2),normal));
+    return add(scale(n,ray),scale(subtract(n * c1,c2),normal));
 }
 
 function phong(point, rayOrigin, normal, reflection, material, light) {
@@ -205,9 +227,7 @@ function findClosestIntersection(origin, dirVector) {
                     t = distance;
                     closestObject = objects[objIdx];
                     point = add(origin, scale(t, dirVector));
-                    
                     normal = point;
-                    
                     intersection = {
                         point: point,
                         type: closestObject.type,
@@ -216,6 +236,30 @@ function findClosestIntersection(origin, dirVector) {
                     };
                 }
             }
+        }
+        if(objects[objIdx].type === "cube"){
+          //let point = getCubeIntersection(origin,dirVector,objects[objIdx].obj);
+          let struct = getCubeIntersection(origin,dirVector,objects[objIdx].obj);
+      
+          if(struct != -1){
+            let point = struct[0];
+            let cubeDist = findDistance(point,origin);
+            
+            if(cubeDist< t){
+              t = cubeDist;
+              console.log("SETTING CUBE",point);
+              closestObject = objects[objIdx];
+              //normal = add(point,scale(t,dirVector));
+              normal = struct[1];
+              console.log("CUBE NORMAL = ", normal);
+              intersection = {
+                point: point,
+                type: closestObject.type,
+                normal: normal,
+                material: materials[closestObject.materialIdx]
+              };
+            }
+          }
         }
     }
     // Will return an intersection data structure
@@ -260,7 +304,6 @@ function trace() {
           let p = vec4(2 * (rowIdx / nRows) - 1.0, 2 * (colIdx / nColumns) - 1.0, -2.0, 1.0); 
           let d = normalize(subtract(p, eye));
           let color = rayTrace(p, d, lights[0],0);
-          console.log("**********COLORRR ", color);
           data[(colIdx * nRows + rowIdx) * 3] = 255 * color[0];
           data[(colIdx * nRows + rowIdx) * 3 + 1] = 255 * color[1];
           data[(colIdx * nRows + rowIdx) * 3 + 2] = 255 * color[2];
