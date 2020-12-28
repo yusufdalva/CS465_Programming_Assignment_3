@@ -31,7 +31,7 @@ let materials = [
 ];
 
 // Objects present in the scene
-let cube = new Cube();
+
 let objects = [
     {type: "sphere", center: vec3(0.0, 0.0, 0.0), radius: 0.75, materialIdx: 0}    
 ];
@@ -120,7 +120,7 @@ function getRayPlaneIntersection(p,d,planeNormal,D){
 function getCubeIntersection(p,d,cube){
   //for every plane check if ray intersects with the plane
   let minDis = 10000;
-  let a,b,c,d,interPoint;
+  let a,b,c,vd,interPoint;
   for(i = 0; i < 6; i++){
     let point = getRayPlaneIntersection(p,d,cube.sides[i].planeNormal, cube.sides[i].D);
     if( point != -1){
@@ -130,14 +130,14 @@ function getCubeIntersection(p,d,cube){
           a = cube.sides[i].a;
           b = cube.sides[i].b;
           c = cube.sides[i].c;
-          d = cube.sides[i].d;
+          vd = cube.sides[i].d;
           interPoint = point;
         }
     }
   }
   if(minDis != 10000){
     //check for two triangles in that plane
-    if(pointInTriangleTest(a,b,c,interPoint) || pointInTriangleTest(a,c,d,interPoint)){
+    if(pointInTriangleTest(a,b,c,interPoint) || pointInTriangleTest(a,c,vd,interPoint)){
       return interPoint;
     }
   }
