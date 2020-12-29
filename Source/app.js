@@ -14,30 +14,30 @@ let phi    = 0.0;
 // LookAt parameters - Camera location
 //let eye = vec4(radius*Math.sin(theta)*Math.cos(phi),
   //  radius*Math.sin(theta)*Math.sin(phi), radius*Math.cos(theta), 1.0);
-let eye = vec4(1.0,0.0,-3.0,1.0);
+let eye = vec4(0.0,0.0,-3.0,1.0);
 let at = vec3(0.0, 0.0, 0.0);
 let up = vec3(0.0, 1.0, 0.0);
 
 // Grid dimensions for the canvas
-let nRows = 256;
-let nColumns = 256;
+let nRows = 512;
+let nColumns = 512;
 
 // Data for canvas pixels - traced by trace() function
 let data = new Uint8ClampedArray(nRows * nColumns * 3);
 
 // List of available materials
 let materials = [
-    new Material(vec4( 0.5, 1.0, 1.0, 1.0 ), vec4( 1.0, 1.0, 1.0, 1.0), vec4( 0.8, 0.9, 0.7, 1.0 ), 50.0, 0.9),
-    new Material(vec4( 0.5, 1.0, 1.0, 1.0 ), vec4( 1.0, 1.0, 1.0, 1.0), vec4( 0.8, 0.9, 0.7, 1.0 ), 50.0, 0.9),
-    new Material(vec4( 0.5, 1.0, 1.0, 1.0 ), vec4( 1.0, 1.0, 1.0, 1.0), vec4( 0.8, 0.9, 0.7, 1.0 ), 50.0, 0.9)
+    new Material(vec4( 0.5, 1.0, 1.0, 1.0 ), vec4( 0.2, 0.5, 0.3, 1.0), vec4( 0.8, 0.9, 0.7, 1.0 ), 50.0, 0.9),
+    new Material(vec4( 0.5, 1.0, 1.0, 1.0 ), vec4( 0.0, 0.2, 1.0, 1.0), vec4( 0.3, 0.9, 0.7, 1.0 ), 3.0, 0.9),
+    new Material(vec4( 0.5, 1.0, 1.0, 1.0 ), vec4( 0.8, 0.0, 0.5, 1.0), vec4( 0.3, 0.3, 0.7, 1.0 ), 10.0, 0.9)
 ];
 
 // Objects present in the scene
 let cube = new Cube();
 let objects = [
-    {type: "sphere", center: vec3(-1.2, 0.0, 0.0), radius: 0.5, materialIdx: 0},
-    {type: "cube", obj : cube, materialIdx: 1},   
-    {type: "cone", center: vec3(0.0, 0.0, 0.0),radius: 0.25, height: 0.5, materialIdx: 2}
+    {type: "sphere", center: vec3(-1.5, 0.0, 0.0), radius: 0.5, materialIdx: 2},
+    {type: "cube", obj : cube, materialIdx: 1},
+    {type: "cone", center: vec3(1.5,0.0, 0.0),radius: 0.25, height: 1.0, materialIdx: 0}
 ];
 
 // Ambient light
@@ -62,7 +62,6 @@ let sphereEpsilon = 0.0;
 // Assumed that the base is on x-z plane
 function getSphereIntersection(p, d, r, center) {
     // Sphere eqn: (x-x0)^2 + (y-y0)^2 + (z - z0)^2 - r^2 = 0
-    console.assert(Math.pow(d[0], 2) + Math.pow(d[1], 2) + Math.pow(d[2], 2) === 1.0);
     let b = 2 * ((p[0] - center[0]) * d[0] + (p[1] - center[1]) * d[1] + (p[2] - center[2]) * d[2]);
     let c = Math.pow(p[0] - center[0], 2) + Math.pow(p[1] - center[1], 2) + Math.pow(p[2] - center[2], 2) - Math.pow(r, 2);
     let delta = Math.pow(b, 2) - 4 * c;
@@ -82,7 +81,7 @@ function getSphereIntersection(p, d, r, center) {
     return Math.max(t1, t2);
 }
 
-/*function getConeIntersection(p, d, center, r, h) {
+function getConeIntersection(p, d, center, r, h) {
   // Cone eqn: (x^2 + z^2) / c^2 = (y - h)^2
   // c = r/h
   let yend = center[1] +h ;
@@ -110,8 +109,12 @@ function getSphereIntersection(p, d, r, center) {
       result = nearest;
   }
   result = Math.max(t1, t2);
+  let yDiff = (p[1] + result * d[1]) - center[1];
+  if ((yDiff * yDiff) > (h * h)) {
+      return null;
+  }
   return result;
-}*/
+}
 
 // Tests whether the point is inside a triangle - for polygonal prism in app
 function pointInTriangleTest(a, b, c, point) {
@@ -247,7 +250,7 @@ function findClosestIntersection(origin, dirVector) {
     let point;
     let intersection = null;
     for (let objIdx = 0; objIdx < objects.length; objIdx++) {
-        /*if (objects[objIdx].type === "sphere") {
+        if (objects[objIdx].type === "sphere") {
             let distance = getSphereIntersection(origin, dirVector, objects[objIdx].radius, objects[objIdx].center);
             if (distance !== null) {
                 if (distance < t) {
@@ -264,8 +267,8 @@ function findClosestIntersection(origin, dirVector) {
                     };
                 }
             }
-        }*/
-        /*else if(objects[objIdx].type === "cube"){
+        }
+        else if(objects[objIdx].type === "cube"){
           //let point = getCubeIntersection(origin,dirVector,objects[objIdx].obj);
           let struct = getCubeIntersection(origin,dirVector,objects[objIdx].obj);
           
@@ -285,7 +288,7 @@ function findClosestIntersection(origin, dirVector) {
               };
             }
           }
-        }*/
+        }
         if(objects[objIdx].type === "cone") {
           let distance = getConeIntersection(origin, dirVector, objects[objIdx].center, objects[objIdx].radius, objects[objIdx].height);
           if (distance !== null) {
@@ -344,7 +347,7 @@ function trace() {
     for (let colIdx = 0; colIdx < nColumns; colIdx++) {
         for (let rowIdx = 0; rowIdx < nRows; rowIdx++) {
            // let p = vec4(2 * (rowIdx / nRows) - 1.0, 2 * (colIdx / nColumns) - 1.0, 0.0, 1.0);
-          let p = vec4(2 * (rowIdx / nRows) - 1.0, 2 * (colIdx / nColumns) - 1.0,-2.0, 1.0); 
+          let p = vec4(2 * (rowIdx / nRows) - 1.0, 1.0 - 2 * (colIdx / nColumns),-2.0, 1.0);
           let d = normalize(subtract(p, eye));
           let color = rayTrace(p, d, lights[0],0);
           data[(colIdx * nRows + rowIdx) * 3] = 255 * color[0];
