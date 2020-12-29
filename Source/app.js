@@ -83,6 +83,7 @@ function getSphereIntersection(p, d, r, center) {
 function getConeIntersection(x, z, r, h, z0) {
     // Cone eqn: (x^2 + z^2) / c^2 = (y - h)^2
     // c = r/h
+
 }
 
 // Tests whether the point is inside a triangle - for polygonal prism in app
@@ -108,8 +109,8 @@ function pointInTriangleTest(a, b, c, point) {
   v = (dot00 * dot12 - dot01 * dot02) /denominator
   //u = subtract(mult(dot11,dot02),mult(dot01,dot12))/denominator;
   //v = subtract(mult(dot00,dot12),mult(dot01,dot02))/denominator;
-  console.log("U is ",u);
-  console.log("v is ",v);
+ // console.log("U is ",u);
+  //console.log("v is ",v);
   // Check if point is in triangle
   return (u >= 0) && (v >= 0) && (u + v < 1)
 }
@@ -119,7 +120,7 @@ function getRayPlaneIntersection(p,d,planeNormal,D){
   denominator = dot(planeNormal,d);
   if(denominator> 1e-6){
     //console.log("bigs",D);
-    a = subtract(p, D);
+    a = subtract(p,D);
     
     t = dot(a,planeNormal)/denominator;
     
@@ -137,26 +138,29 @@ function findDistance(v1,v2){
 function getCubeIntersection(p,d,cube){
   //for every plane check if ray intersects with the plane
   
-  let minDis = 10000;
+  let minDis = -2;
   let a,b,c,vd,interPoint,interPlane;
+  let i;
   for(i = 0; i < 6; i++){
     let how_far = getRayPlaneIntersection(p,d,cube.sides[i].planeNormal, cube.sides[i].D);
-    let point = add(p,scale(how_far,d))
-    if( point != -1){
-      
-        let distance = findDistance(p,point);
-        if(distance<minDis){
-          minDis = distance;
+    let point = add(p,scale(how_far,d));
+    if( how_far != -1){
+        //let distance = findDistance(p,point);
+        if(how_far>minDis){
+          minDis = how_far;
           a = cube.sides[i].a;
           b = cube.sides[i].b;
           c = cube.sides[i].c;
           vd = cube.sides[i].d;
           interPlane = cube.sides[i].planeNormal;
+          //console.log("SIDES ",cube.sides[i]);
+          console.log( "PLANE NORMAL ",cube.sides[i].planeNormal);
           interPoint = point;
         }
     }
+    
   }
-  if(minDis != 10000){
+  if(minDis != -2){
     //check for two triangles in that plane
     if(pointInTriangleTest(a,b,c,interPoint) || pointInTriangleTest(a,c,vd,interPoint)){
       
@@ -220,7 +224,7 @@ function findClosestIntersection(origin, dirVector) {
     let point;
     let intersection = null;
     for (let objIdx = 0; objIdx < objects.length; objIdx++) {
-        if (objects[objIdx].type === "sphere") {
+        /*if (objects[objIdx].type === "sphere") {
             let distance = getSphereIntersection(origin, dirVector, objects[objIdx].radius, objects[objIdx].center);
             if (distance !== null) {
                 if (distance < t) {
@@ -236,7 +240,7 @@ function findClosestIntersection(origin, dirVector) {
                     };
                 }
             }
-        }
+        }*/
         if(objects[objIdx].type === "cube"){
           //let point = getCubeIntersection(origin,dirVector,objects[objIdx].obj);
           let struct = getCubeIntersection(origin,dirVector,objects[objIdx].obj);
@@ -301,7 +305,7 @@ function trace() {
     for (let colIdx = 0; colIdx < nColumns; colIdx++) {
         for (let rowIdx = 0; rowIdx < nRows; rowIdx++) {
            // let p = vec4(2 * (rowIdx / nRows) - 1.0, 2 * (colIdx / nColumns) - 1.0, 0.0, 1.0);
-          let p = vec4(2 * (rowIdx / nRows) - 1.0, 2 * (colIdx / nColumns) - 1.0, -2.0, 1.0); 
+          let p = vec4(2 * (rowIdx / nRows) - 1.0, 2 * (colIdx / nColumns) - 1.0, 2.0, 1.0); 
           let d = normalize(subtract(p, eye));
           let color = rayTrace(p, d, lights[0],0);
           data[(colIdx * nRows + rowIdx) * 3] = 255 * color[0];
