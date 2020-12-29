@@ -14,7 +14,7 @@ let phi    = 0.0;
 // LookAt parameters - Camera location
 //let eye = vec4(radius*Math.sin(theta)*Math.cos(phi),
   //  radius*Math.sin(theta)*Math.sin(phi), radius*Math.cos(theta), 1.0);
-let eye = vec4(0.0,0.0,-3.0,1.0);
+let eye = vec4(0.5,0.5,-3.0,1.0);
 let at = vec3(0.0, 0.0, 0.0);
 let up = vec3(0.0, 1.0, 0.0);
 
@@ -33,11 +33,11 @@ let materials = [
 ];
 
 // Objects present in the scene
-let cube = new Cube();
+let cube = new Cube(vec3(0.0, 0.0, 0.0), 0.5);
 let objects = [
-    {type: "sphere", center: vec3(-1.5, 0.0, 0.0), radius: 0.5, materialIdx: 2},
-    {type: "cube", obj : cube, materialIdx: 1},
-    {type: "cone", center: vec3(1.5,0.0, 0.0),radius: 0.25, height: 1.0, materialIdx: 0}
+    new Primitive("sphere", new Sphere(vec3(-1.5, 0.0, 0.0), 0.5), 2),
+    new Primitive("cube", new Cube(vec3(0.0, 0.0, 0.0), 0.5), 1),
+    new Primitive("cone", new Cone(vec3(1.5,0.0, 0.0), 0.5, 1.0), 0)
 ];
 
 // Ambient light
@@ -122,21 +122,21 @@ function pointInTriangleTest(a, b, c, point) {
     // x - point to check
     // Compute vectors     
   //console.log("POINTS ",a,b,c,point);
-  v0 = subtract(c,a);
-  v1 = subtract(b,a);
-  v2 = subtract(point, a);
+  let v0 = subtract(c,a);
+  let v1 = subtract(b,a);
+  let v2 = subtract(point, a);
 
   // Compute dot products
-  dot00 = dot(v0, v0)
-  dot01 = dot(v0, v1)
-  dot02 = dot(v0, v2)
-  dot11 = dot(v1, v1)
-  dot12 = dot(v1, v2)
+  let dot00 = dot(v0, v0);
+  let dot01 = dot(v0, v1);
+  let dot02 = dot(v0, v2);
+  let dot11 = dot(v1, v1);
+  let dot12 = dot(v1, v2);
 
   // Compute barycentric coordinates
-  denominator = (dot00 * dot11 - dot01 * dot01)
-  u = (dot11 * dot02 - dot01 * dot12) / denominator
-  v = (dot00 * dot12 - dot01 * dot02) /denominator
+  let denominator = (dot00 * dot11 - dot01 * dot01);
+  let u = (dot11 * dot02 - dot01 * dot12) / denominator;
+  let v = (dot00 * dot12 - dot01 * dot02) /denominator;
   //u = subtract(mult(dot11,dot02),mult(dot01,dot12))/denominator;
   //v = subtract(mult(dot00,dot12),mult(dot01,dot02))/denominator;
  // console.log("U is ",u);
@@ -148,11 +148,11 @@ function pointInTriangleTest(a, b, c, point) {
 
 function getRayPlaneIntersection(rayOrigin,rayDir,planeNormal,D){
     
-  denominator = dot(planeNormal,rayDir);
+  let denominator = dot(planeNormal,rayDir);
   if(denominator> 1e-6){
     //console.log("bigs",D);
-    a = subtract(rayOrigin,D);
-    t = -dot(a,planeNormal)/denominator;
+    let a = subtract(rayOrigin,D);
+    let t = -dot(a,planeNormal)/denominator;
     let point = add(add(a,scale(t,rayDir)),D);
     return [t,point];
   }
@@ -161,7 +161,7 @@ function getRayPlaneIntersection(rayOrigin,rayDir,planeNormal,D){
 function findDistance(v1,v2){
   let diff = 0;
   for(let i = 0; i < 4; i++){
-    diff += (v1[i],v2[i])^2;
+    diff += Math.pow(subtract(v1[i],v2[i]), 2);
   }
   return Math.sqrt(diff);
 }
@@ -205,7 +205,7 @@ function reflect(point, normal, p){
   return subtract(l,scale(2 * dot(l, normal), normal));
 }
 function cubeReflect(point, normal, rayDir){
-    c1 = -dot(normal,rayDir);
+    let c1 = -dot(normal,rayDir);
     return add(rayDir,scale(2,scale(c1,normal)));
 }
 
@@ -251,7 +251,7 @@ function findClosestIntersection(origin, dirVector) {
     let intersection = null;
     for (let objIdx = 0; objIdx < objects.length; objIdx++) {
         if (objects[objIdx].type === "sphere") {
-            let distance = getSphereIntersection(origin, dirVector, objects[objIdx].radius, objects[objIdx].center);
+            let distance = getSphereIntersection(origin, dirVector, objects[objIdx].objData.radius, objects[objIdx].objData.center);
             if (distance !== null) {
                 if (distance < t) {
                     t = distance;
@@ -263,15 +263,12 @@ function findClosestIntersection(origin, dirVector) {
                         type: closestObject.type,
                         normal: normal,
                         material: materials[closestObject.materialIdx],
-                        
                     };
                 }
             }
         }
         else if(objects[objIdx].type === "cube"){
-          //let point = getCubeIntersection(origin,dirVector,objects[objIdx].obj);
-          let struct = getCubeIntersection(origin,dirVector,objects[objIdx].obj);
-          
+          let struct = getCubeIntersection(origin,dirVector,objects[objIdx].objData);
           if(struct != null){
             let point = struct[0];
             let cubeDist = findDistance(point,origin);
@@ -290,7 +287,7 @@ function findClosestIntersection(origin, dirVector) {
           }
         }
         if(objects[objIdx].type === "cone") {
-          let distance = getConeIntersection(origin, dirVector, objects[objIdx].center, objects[objIdx].radius, objects[objIdx].height);
+          let distance = getConeIntersection(origin, dirVector, objects[objIdx].objData.center, objects[objIdx].objData.radius, objects[objIdx].objData.height);
           if (distance !== null) {
               if (distance < t) {
                   t = distance;
@@ -346,10 +343,9 @@ function trace() {
     // Grid logic -> nRows x nColumns grid
     for (let colIdx = 0; colIdx < nColumns; colIdx++) {
         for (let rowIdx = 0; rowIdx < nRows; rowIdx++) {
-           // let p = vec4(2 * (rowIdx / nRows) - 1.0, 2 * (colIdx / nColumns) - 1.0, 0.0, 1.0);
           let p = vec4(2 * (rowIdx / nRows) - 1.0, 1.0 - 2 * (colIdx / nColumns),-2.0, 1.0);
           let d = normalize(subtract(p, eye));
-          let color = rayTrace(p, d, lights[0],0);
+          let color = rayTrace(eye, d, lights[0],0);
           data[(colIdx * nRows + rowIdx) * 3] = 255 * color[0];
           data[(colIdx * nRows + rowIdx) * 3 + 1] = 255 * color[1];
           data[(colIdx * nRows + rowIdx) * 3 + 2] = 255 * color[2];
