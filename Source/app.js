@@ -28,13 +28,13 @@ let data = new Uint8ClampedArray(nRows * nColumns * 3);
 // List of available materials
 let materials = [
     new Material(vec4( 0.5, 1.0, 1.0, 1.0 ), vec4( 1.0, 1.0, 1.0, 1.0), vec4( 0.8, 0.9, 0.7, 1.0 ), 50.0, 0.9),
-    new Material(vec4( 0.5, 1.0, 1.0, 1.0 ), vec4( 1.0, 1.0, 1.0, 1.0), vec4( 0.8, 0.9, 0.7, 1.0 ), 50.0, 0.9)
+    new Material(vec4( 0.5, 1.0, 1.0, 1.0 ), vec4( 1.0, 1.0, 1.0, 1.0), vec4( 0.8, 0.9, 0.7, 1.0 ), 10.0, 0.9)
 ];
 
 // Objects present in the scene
 let cube = new Cube();
 let objects = [
-    {type: "sphere", center: vec3(0.0, 0.0, 0.0), radius: 0.5, materialIdx: 0},
+    {type: "sphere", center: vec3(-1.2, 0.0, 0.0), radius: 0.5, materialIdx: 0},
     {type: "cube", obj : cube, materialIdx: 1}   
 ];
 
@@ -91,7 +91,7 @@ function pointInTriangleTest(a, b, c, point) {
     // a,b,c - sides of triangle
     // x - point to check
     // Compute vectors     
-  
+  //console.log("POINTS ",a,b,c,point);
   v0 = subtract(c,a);
   v1 = subtract(b,a);
   v2 = subtract(point, a);
@@ -112,21 +112,21 @@ function pointInTriangleTest(a, b, c, point) {
  // console.log("U is ",u);
   //console.log("v is ",v);
   // Check if point is in triangle
+  //console.log("returnn ",(u >= 0) && (v >= 0) && (u + v < 1));
   return (u >= 0) && (v >= 0) && (u + v < 1)
 }
 
-function getRayPlaneIntersection(p,d,planeNormal,D){
+function getRayPlaneIntersection(rayOrigin,rayDir,planeNormal,D){
     
-  denominator = dot(planeNormal,d);
+  denominator = dot(planeNormal,rayDir);
   if(denominator> 1e-6){
     //console.log("bigs",D);
-    a = subtract(p,D);
-    
-    t = dot(a,planeNormal)/denominator;
-    
-    return t;
+    a = subtract(rayOrigin,D);
+    t = -dot(a,planeNormal)/denominator;
+    let point = add(add(a,scale(t,rayDir)),D);
+    return [t,point];
   }
-  return -1;
+  return null;
 }
 function findDistance(v1,v2){
   let diff = 0;
@@ -135,48 +135,48 @@ function findDistance(v1,v2){
   }
   return Math.sqrt(diff);
 }
-function getCubeIntersection(p,d,cube){
+function getCubeIntersection(rayOrigin,rayDir,cube){
   //for every plane check if ray intersects with the plane
   
-  let minDis = -2;
+  let minDis = 10000;
   let a,b,c,vd,interPoint,interPlane;
+
   let i;
   for(i = 0; i < 6; i++){
-    let how_far = getRayPlaneIntersection(p,d,cube.sides[i].planeNormal, cube.sides[i].D);
-    let point = add(p,scale(how_far,d));
-    if( how_far != -1){
-        //let distance = findDistance(p,point);
-        if(how_far>minDis){
+    let struct = getRayPlaneIntersection(rayOrigin,rayDir,cube.sides[i].planeNormal, cube.sides[i].D);
+    
+    if( struct != null){
+      let point = struct[1];
+      let how_far = struct[0];
+        if(how_far<minDis){
           minDis = how_far;
           a = cube.sides[i].a;
           b = cube.sides[i].b;
           c = cube.sides[i].c;
           vd = cube.sides[i].d;
-          interPlane = cube.sides[i].planeNormal;
-          //console.log("SIDES ",cube.sides[i]);
-          console.log( "PLANE NORMAL ",cube.sides[i].planeNormal);
+          interPlane= cube.sides[i].planeNormal;
           interPoint = point;
         }
     }
     
   }
-  if(minDis != -2){
+  if(minDis != 10000){
     //check for two triangles in that plane
     if(pointInTriangleTest(a,b,c,interPoint) || pointInTriangleTest(a,c,vd,interPoint)){
-      
       return [interPoint,interPlane];
     }
   }
-  return -1;
+  return null;
 }
 
-function generateCubeVertices(center) {
-
-}
 
 function reflect(point, normal, p){
-    let l = normalize(subtract(point,p));
-    return subtract(scale(2 * dot(l, normal), normal), l);
+  let l = normalize(subtract(point,p));
+  return subtract(l,scale(2 * dot(l, normal), normal));
+}
+function cubeReflect(point, normal, rayDir){
+    c1 = -dot(normal,rayDir);
+    return add(rayDir,scale(2,scale(c1,normal)));
 }
 
 function transmit(point,normal,p,n1,n2){
@@ -188,32 +188,21 @@ function transmit(point,normal,p,n1,n2){
 }
 
 function phong(point, rayOrigin, normal, reflection, material, light) {
-    //console.assert(Math.sqrt(dot(normal, normal)) === 1.0); // Normalization check
-    //console.assert(Math.sqrt(dot(reflection, reflection)) === 1.0); // Normalization check
-   // console.log("**NORMALL ",dot(normal,normal));
-    //console.log("REFLECTION", dot(reflection,reflection));
-    // Computing the ambient term
     let ambient = mult(light.ambient, material.ambient);
-    //console.log("Ambient ", ambient);
     // Computing the diffuse term
     let illDir = normalize(subtract(light.position,point)); // direction of I
     let sourceCos = dot(illDir, normal);
     let diffuse = mult(light.diffuse, material.diffuse);
     diffuse = scale(sourceCos, diffuse);
-   // console.log("DIIFUSE ", diffuse);
+    
     // Computing the specular term
     let viewerDir = normalize(subtract(point,eye));
     let specular = mult(light.specular, material.specular);
     specular = scale(Math.max(Math.pow(dot(reflection, viewerDir), material.shininess), 0.0), specular);
-    //console.log("SPECULAR ",specular);
+    console.log("COLOR ",add(add(ambient,diffuse),specular));
     return add(add(ambient,diffuse),specular);
 }
 
-// Creating a cube as triangles. Will not be sent to shaders, just to determine the triangle surfaces
-function createCube() {
-    // Main structure: First define the triangle as a triad, then compute and store the normal
-
-}
 
 function findClosestIntersection(origin, dirVector) {
     // What to do:
@@ -224,7 +213,7 @@ function findClosestIntersection(origin, dirVector) {
     let point;
     let intersection = null;
     for (let objIdx = 0; objIdx < objects.length; objIdx++) {
-        /*if (objects[objIdx].type === "sphere") {
+        if (objects[objIdx].type === "sphere") {
             let distance = getSphereIntersection(origin, dirVector, objects[objIdx].radius, objects[objIdx].center);
             if (distance !== null) {
                 if (distance < t) {
@@ -236,37 +225,36 @@ function findClosestIntersection(origin, dirVector) {
                         point: point,
                         type: closestObject.type,
                         normal: normal,
-                        material: materials[closestObject.materialIdx]
+                        material: materials[closestObject.materialIdx],
+                        
                     };
                 }
             }
-        }*/
+        }
         if(objects[objIdx].type === "cube"){
           //let point = getCubeIntersection(origin,dirVector,objects[objIdx].obj);
           let struct = getCubeIntersection(origin,dirVector,objects[objIdx].obj);
-      
-          if(struct != -1){
+          
+          if(struct != null){
             let point = struct[0];
             let cubeDist = findDistance(point,origin);
             
             if(cubeDist< t){
               t = cubeDist;
-              console.log("SETTING CUBE",point);
               closestObject = objects[objIdx];
-              //normal = add(point,scale(t,dirVector));
               normal = struct[1];
-              console.log("CUBE NORMAL = ", normal);
               intersection = {
                 point: point,
                 type: closestObject.type,
                 normal: normal,
-                material: materials[closestObject.materialIdx]
+                material: materials[closestObject.materialIdx],
               };
             }
           }
         }
     }
     // Will return an intersection data structure
+    
     return intersection;
 }
 
@@ -305,7 +293,7 @@ function trace() {
     for (let colIdx = 0; colIdx < nColumns; colIdx++) {
         for (let rowIdx = 0; rowIdx < nRows; rowIdx++) {
            // let p = vec4(2 * (rowIdx / nRows) - 1.0, 2 * (colIdx / nColumns) - 1.0, 0.0, 1.0);
-          let p = vec4(2 * (rowIdx / nRows) - 1.0, 2 * (colIdx / nColumns) - 1.0, 2.0, 1.0); 
+          let p = vec4(2 * (rowIdx / nRows) - 1.0, 2 * (colIdx / nColumns) - 1.0,-2.0, 1.0); 
           let d = normalize(subtract(p, eye));
           let color = rayTrace(p, d, lights[0],0);
           data[(colIdx * nRows + rowIdx) * 3] = 255 * color[0];
