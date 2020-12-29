@@ -28,14 +28,16 @@ let data = new Uint8ClampedArray(nRows * nColumns * 3);
 // List of available materials
 let materials = [
     new Material(vec4( 0.5, 1.0, 1.0, 1.0 ), vec4( 1.0, 1.0, 1.0, 1.0), vec4( 0.8, 0.9, 0.7, 1.0 ), 50.0, 0.9),
-    new Material(vec4( 0.5, 1.0, 1.0, 1.0 ), vec4( 1.0, 1.0, 1.0, 1.0), vec4( 0.8, 0.9, 0.7, 1.0 ), 10.0, 0.9)
+    new Material(vec4( 0.5, 1.0, 1.0, 1.0 ), vec4( 1.0, 1.0, 1.0, 1.0), vec4( 0.8, 0.9, 0.7, 1.0 ), 50.0, 0.9),
+    new Material(vec4( 0.5, 1.0, 1.0, 1.0 ), vec4( 1.0, 1.0, 1.0, 1.0), vec4( 0.8, 0.9, 0.7, 1.0 ), 50.0, 0.9)
 ];
 
 // Objects present in the scene
 let cube = new Cube();
 let objects = [
     {type: "sphere", center: vec3(-1.2, 0.0, 0.0), radius: 0.5, materialIdx: 0},
-    {type: "cube", obj : cube, materialIdx: 1}   
+    {type: "cube", obj : cube, materialIdx: 1},   
+    {type: "cone", center: vec3(0.0, 0.0, 0.0),radius: 0.25, height: 0.5, materialIdx: 2}
 ];
 
 // Ambient light
@@ -80,11 +82,36 @@ function getSphereIntersection(p, d, r, center) {
     return Math.max(t1, t2);
 }
 
-function getConeIntersection(x, z, r, h, z0) {
-    // Cone eqn: (x^2 + z^2) / c^2 = (y - h)^2
-    // c = r/h
-
-}
+/*function getConeIntersection(p, d, center, r, h) {
+  // Cone eqn: (x^2 + z^2) / c^2 = (y - h)^2
+  // c = r/h
+  let yend = center[1] +h ;
+  let x = p[0] - center[0];
+  let y = p[1] - (center[1]+h);
+  let z = p[2] - center[2];
+  let hSquare = Math.pow(h, 2);
+  let rSquare = Math.pow(r, 2);
+  let a = hSquare * (Math.pow(d[0], 2) + Math.pow(d[2], 2)) - rSquare * Math.pow(d[1], 2);
+  let b = hSquare * (2 * x * d[0] + 2 * z * d[2]) - rSquare * (2 * y * d[1]);
+  let c = hSquare * (Math.pow(x, 2) + Math.pow(z, 2)) - rSquare * Math.pow(y, 2);
+  let delta = Math.pow(b, 2) - 4 * a * c;
+  if (delta < 0) {
+      return null;
+  }
+  let t1, t2;
+  t1 = (-b + Math.sqrt(delta)) / (2 * a);
+  t2 = (-b - Math.sqrt(delta)) / (2 * a);
+  if (t1 < 0 && t2 < 0) {
+      return null;
+  }
+  let nearest = Math.min(t1, t2);
+  let result;
+  if (nearest > 0) {
+      result = nearest;
+  }
+  result = Math.max(t1, t2);
+  return result;
+}*/
 
 // Tests whether the point is inside a triangle - for polygonal prism in app
 function pointInTriangleTest(a, b, c, point) {
@@ -189,16 +216,23 @@ function transmit(point,normal,p,n1,n2){
 
 function phong(point, rayOrigin, normal, reflection, material, light) {
     let ambient = mult(light.ambient, material.ambient);
+    ambient = subtract(ambient,vec4(0,0,0,1));
+    console.log("Ambient ",ambient);
     // Computing the diffuse term
+    
     let illDir = normalize(subtract(light.position,point)); // direction of I
-    let sourceCos = dot(illDir, normal);
+    illDir = add(illDir,vec4(0,0,0,1));
+    let sourceCos = Math.max(dot(normal,illDir),0.0);
     let diffuse = mult(light.diffuse, material.diffuse);
     diffuse = scale(sourceCos, diffuse);
+    console.log("Diffuse ",diffuse);
     
     // Computing the specular term
     let viewerDir = normalize(subtract(point,eye));
     let specular = mult(light.specular, material.specular);
-    specular = scale(Math.max(Math.pow(dot(reflection, viewerDir), material.shininess), 0.0), specular);
+    specular = scale(Math.pow(Math.max(dot(reflection, viewerDir),0.0), material.shininess), specular);
+    //specular = scale(Math.max(Math.pow(dot(reflection, viewerDir), material.shininess), 0.0), specular);
+    console.log("SPECULAR ", specular);
     console.log("COLOR ",add(add(ambient,diffuse),specular));
     return add(add(ambient,diffuse),specular);
 }
@@ -213,7 +247,7 @@ function findClosestIntersection(origin, dirVector) {
     let point;
     let intersection = null;
     for (let objIdx = 0; objIdx < objects.length; objIdx++) {
-        if (objects[objIdx].type === "sphere") {
+        /*if (objects[objIdx].type === "sphere") {
             let distance = getSphereIntersection(origin, dirVector, objects[objIdx].radius, objects[objIdx].center);
             if (distance !== null) {
                 if (distance < t) {
@@ -230,15 +264,15 @@ function findClosestIntersection(origin, dirVector) {
                     };
                 }
             }
-        }
-        if(objects[objIdx].type === "cube"){
+        }*/
+        /*else if(objects[objIdx].type === "cube"){
           //let point = getCubeIntersection(origin,dirVector,objects[objIdx].obj);
           let struct = getCubeIntersection(origin,dirVector,objects[objIdx].obj);
           
           if(struct != null){
             let point = struct[0];
             let cubeDist = findDistance(point,origin);
-            
+            console.log("INTERSECTION ",point);
             if(cubeDist< t){
               t = cubeDist;
               closestObject = objects[objIdx];
@@ -251,7 +285,24 @@ function findClosestIntersection(origin, dirVector) {
               };
             }
           }
-        }
+        }*/
+        if(objects[objIdx].type === "cone") {
+          let distance = getConeIntersection(origin, dirVector, objects[objIdx].center, objects[objIdx].radius, objects[objIdx].height);
+          if (distance !== null) {
+              if (distance < t) {
+                  t = distance;
+                  closestObject = objects[objIdx];
+                  point = add(origin, scale(t, dirVector));
+                  normal = point; // Will change this
+                  intersection = {
+                      point: point,
+                      type: closestObject.type,
+                      normal: normal,
+                      material: materials[closestObject.materialIdx]
+                  };
+              }
+          }
+      }
     }
     // Will return an intersection data structure
     
