@@ -36,16 +36,31 @@
     <!-- Ray Tracing Implementation -->
     <script type="text/javascript" src="../Source/objects.js"></script>
     <script type="text/javascript" src="../Source/app.js"></script>
+
+    <link rel="stylesheet"
+          href="https://fonts.googleapis.com/css?family=Roboto">
+    <link rel="stylesheet" href="../Source/style.css">
     
     
 </head>
 <body>
-    <canvas id="app-canvas" width="512" height="512">
+<div>
+    <h1 id="main-title">Welcome to Ray Tracer</h1>
+</div>
+<div id="app">
+    <canvas id="app-canvas" width="512" height="512" style="background: url('../Source/loading_512x512.jpg');">
         Sorry, your environment does not support HTML5 canvas!
-    </canvas>
-<div id="buttons">
-    <button id="download-button" type="button">Download Scene</button>
-    <input id="upload-button" type="file">
+    </canvas><br>
+    <div id="buttons">
+        <button id="download-button" type="button">Download Scene</button>
+        <input id="upload-button" type="file">
+    </div>
+</div>
+<div id="names">
+    <br>
+    <h2 id="contributors">Contributors</h2>
+    <h4 id="yd">Yusuf Dalva - 21602867</h4>
+    <h4 id="sz">Sezin Zeydan - 21702567</h4>
 </div>
 </body>
 </html>

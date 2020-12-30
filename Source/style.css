@@ -1,0 +1,32 @@
+#main-title {
+    font-family: "Roboto";
+    text-align: center;
+}
+
+html {
+    font-family: "Roboto";
+}
+
+body {
+    background-image: url("download.jpeg");
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    background-size: cover;
+}
+
+#app {
+    text-align: center;
+}
+#buttons {
+    text-align: center;
+}
+
+#names {
+    text-align: center;
+}
+
+#app-canvas {
+    display: block;
+    margin: 0 auto;
+    border: 5px solid rgb(0, 153, 230);
+}
