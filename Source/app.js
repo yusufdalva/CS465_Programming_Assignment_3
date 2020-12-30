@@ -6,17 +6,10 @@ let program;
 // Texture to send
 let texture;
 
-// View parameters
-let radius = 1.5;
-let theta  = 0.0;
-let phi    = 0.0;
-
 // LookAt parameters - Camera location
 //let eye = vec4(radius*Math.sin(theta)*Math.cos(phi),
   //  radius*Math.sin(theta)*Math.sin(phi), radius*Math.cos(theta), 1.0);
-let eye = vec4(0.0, 0.0,-3.0,1.0);
-let at = vec3(0.0, 0.0, 0.0);
-let up = vec3(0.0, 1.0, 0.0);
+let eye = vec3(0.5, 0.0,-2.0);
 
 // Grid dimensions for the canvas
 let nRows = 512;
@@ -27,28 +20,26 @@ let data = new Uint8ClampedArray(nRows * nColumns * 3);
 
 // List of available materials
 let materials = [
-    new Material(vec4( 0.5, 1.0, 1.0, 1.0 ), vec4( 0.2, 0.5, 0.3, 1.0), vec4( 0.8, 0.9, 0.7, 1.0 ), 50.0, 0.2),
-    new Material(vec4( 0.5, 1.0, 1.0, 1.0 ), vec4( 0.0, 0.2, 1.0, 1.0), vec4( 0.3, 0.9, 0.7, 1.0 ), 50.0, 0.9),
-    new Material(vec4( 0.5, 1.0, 1.0, 1.0 ), vec4( 0.8, 0.0, 0.5, 1.0), vec4( 0.3, 0.3, 0.7, 1.0 ), 10.0, 0.9)
+    new Material(vec3( 0.5, 1.0, 1.0), vec3( 0.2, 0.5, 0.3), vec3( 0.8, 0.9, 0.7), 50.0, 0.2),
+    new Material(vec3( 0.5, 1.0, 1.0), vec3( 0.2, 0.2, 0.2), vec3( 0.3, 0.9, 0.7), 50.0, 0.9),
+    new Material(vec3( 0.5, 0.5, 0.5), vec3( 0.6, 0.0, 0.7), vec3( 0.3, 0.3, 0.4), 50.0, 0.2),
+    new Material(vec3( 0.5, 1.0, 1.0), vec3( 0.2, 0.5, 0.3), vec3( 0.8, 0.9, 0.7), 50.0, 0.2)
 ];
 
 // Objects present in the scene
 let objects = [
-    new Primitive("sphere", new Sphere(vec3(-1.5, 0.0, 0.0), 0.5), 2),
-    new Primitive("cube", new Cube(vec3(0.0, 0.0, 0.0), 0.5), 1),
-    new Primitive("cone", new Cone(vec3(0.0,0.0, 0.0), 0.5, 1.0), 0),
-    new Primitive("cone", new Cone(vec3(1.5,0.0, 0.0), 0.5, 1.0), 0)
+    new Primitive("sphere", new Sphere(vec3(0.0, 0.0, 0.0), 0.5), 2),
+    new Primitive("cube", new Cube(vec3(-1.5, 0.0, 0.0), 0.5), 1),
+    new Primitive("cone", new Cone(vec3(1.0, 0.0, 0.0), 0.5, 1.0), 0)
 ];
 
 // Ambient light
 let lights = [
-    new Light(vec4(1.0, 1.0, -3.0, 0.0 ), vec4(0.2, 0.2, 0.2, 1.0 ), vec4( 1.0, 1.0, 1.0, 1.0 ), vec4( 1.0, 1.0, 1.0, 1.0 ))
+    new Light(vec3(1.0, 1.0, -5.0), vec3(0.2, 0.2, 0.2), vec3( 1.0, 1.0, 1.0), vec3( 1.0, 1.0, 1.0))
 ];
 
 // Ray tracing iteration limit
 const iterLimit = 3;
-// Background Color
-const backgroundColor = vec4(0.8, 0.8, 0.8, 1.0);
 // Intersection threshold
 let sphereEpsilon = 0.0;
 
@@ -58,6 +49,72 @@ let sphereEpsilon = 0.0;
 *   point: 3D point, the vertex itself
 * }
 * */
+
+function createSaveJSON() {
+    let mat = [];
+    for (let i = 0; i < materials.length; i++) {
+        let material = {
+            ambient: materials[i].ambient,
+            diffuse: materials[i].diffuse,
+            specular: materials[i].specular,
+            shininess: materials[i].shininess,
+            density: materials[i].density
+        };
+        mat.push(material);
+    }
+    let light = [];
+    for (let i = 0; i < lights.length; i++) {
+        let l = {
+            position: lights[i].position,
+            ambient: lights[i].ambient,
+            diffuse: lights[i].diffuse,
+            specular: lights[i].specular
+        };
+        light.push(l);
+    }
+    let shapes = [];
+    for (let i = 0; i < objects.length; i++) {
+        let shape = {
+            type: objects[i].type,
+            materialIdx: objects[i].materialIdx
+        };
+        if (shape.type === "sphere") {
+            shape.objData = {
+                center: objects[i].objData.center,
+                radius: objects[i].objData.radius
+            };
+        } else if (shape.type === "cone") {
+            shape.objData = {
+                center: objects[i].objData.center,
+                radius: objects[i].objData.radius,
+                height: objects[i].objData.height
+            }
+        } else if (shape.type === "cube") {
+            shape.objData = {
+                center: objects[i].objData.center,
+                sideLength: objects[i].objData.sideLength
+            }
+        }
+        shapes.push(shape);
+    }
+    return {
+        cop: [eye[0], eye[1], eye[2]],
+        materials: mat,
+        lights: light,
+        shapes: shapes
+    };
+}
+
+function saveData(data) {
+    let el = document.createElement("a");
+    let docData = JSON.stringify(data);
+    el.setAttribute("href", "data:text/plain;charset=utf-8," + encodeURIComponent(docData));
+    el.setAttribute("download", "data.txt");
+    el.style.display = "none";
+    document.body.appendChild(el);
+    el.click();
+    document.body.removeChild(el);
+}
 
 // Assumed that the base is on x-z plane
 function getSphereIntersection(p, d, r, center) {
@@ -117,12 +174,12 @@ function getConeIntersection(p, d, center, r, h) {
         return null;
     }
     if (!yDiff) {
-        return [result, vec4(0, -1, 0, 1.0)];
+        return [result, vec3(0, -1, 0)];
     }
     if ((yDiff * yDiff) > (h * h)) {
         return null;
     }
-    return [result, vec4(intersect[0], Math.sqrt(intersect[0] * intersect[0] + intersect[2] * intersect[2]) * k, intersect[2])];
+    return [result, vec3(intersect[0], Math.sqrt(intersect[0] * intersect[0] + intersect[2] * intersect[2]) * k, intersect[2])];
 }
 
 // Tests whether the point is inside a triangle - for polygonal prism in app
@@ -169,7 +226,7 @@ function getRayPlaneIntersection(rayOrigin,rayDir,planeNormal,D){
 }
 function findDistance(v1,v2){
   let diff = 0;
-  for(let i = 0; i < 4; i++){
+  for(let i = 0; i < 3; i++){
     diff += Math.pow(subtract(v1[i],v2[i]), 2);
   }
   return Math.sqrt(diff);
@@ -228,24 +285,20 @@ function transmit(point,normal,p,n1,n2){
 
 function phong(point, rayOrigin, normal, reflection, material, light) {
     let ambient = mult(light.ambient, material.ambient);
-    ambient = subtract(ambient,vec4(0,0,0,1));
-    console.log("Ambient ",ambient);
+    ambient = subtract(ambient,vec3(0,0,0));
     // Computing the diffuse term
     
     let illDir = normalize(subtract(light.position,point)); // direction of I
-    illDir = add(illDir,vec4(0,0,0,1));
+    illDir = add(illDir,vec3(0,0,0));
     let sourceCos = Math.max(dot(normal,illDir),0.0);
     let diffuse = mult(light.diffuse, material.diffuse);
     diffuse = scale(sourceCos, diffuse);
-    console.log("Diffuse ",diffuse);
     
     // Computing the specular term
     let viewerDir = normalize(subtract(point,eye));
     let specular = mult(light.specular, material.specular);
     specular = scale(Math.pow(Math.max(dot(reflection, viewerDir),0.0), material.shininess), specular);
     //specular = scale(Math.max(Math.pow(dot(reflection, viewerDir), material.shininess), 0.0), specular);
-    console.log("SPECULAR ", specular);
-    console.log("COLOR ",add(add(ambient,diffuse),specular));
     return add(add(ambient,diffuse),specular);
 }
 
@@ -281,7 +334,6 @@ function findClosestIntersection(origin, dirVector) {
           if(struct != null){
             let point = struct[0];
             let cubeDist = findDistance(point,origin);
-            console.log("INTERSECTION ",point);
             if(cubeDist< t){
               t = cubeDist;
               closestObject = objects[objIdx];
@@ -322,7 +374,7 @@ function rayTrace(origin, dirVector, light, iterCount) {
     // origin corresponds to p in p + t * d
     // dirVector corresponds to d in p + t * d
     if (iterCount > iterLimit) {
-        return vec4(0.0, 0.0, 0.0, 1.0);
+        return vec3(0.0, 0.0, 0.0);
     }
     let intersection = findClosestIntersection(origin, dirVector);
     // Intersection data structure:
@@ -333,7 +385,10 @@ function rayTrace(origin, dirVector, light, iterCount) {
     * material: Material properties of the object
     * */
     if (intersection === null) {
-        return vec4(0.0, 0.0, 0.0, 1.0);
+        if (!iterCount) {
+            return vec3(0.0, Math.abs(origin[1]), Math.abs(origin[0]));
+        }
+        return vec3(0.0, 0.0, 0.0);
     }
     let normal = intersection.normal;
     let reflection = reflect(intersection.point, normalize(normal), origin);
@@ -341,11 +396,13 @@ function rayTrace(origin, dirVector, light, iterCount) {
     // point, rayOrigin, normal, reflection, material, light
     let local = phong(intersection.point, origin, normal, reflection, intersection.material, light);
     let reflected = rayTrace(intersection.point, reflection, light,iterCount + 1);
+/*
     if (intersection.type !== "cube") {
         let transmission= transmit(intersection.point, normalize(normal), origin, 1.0, intersection.material.density);
         let transmitted = rayTrace(intersection.point, transmission, light,iterCount + 1);
         return add(add(local, reflected), transmitted);
     }
+ */
     return add(local, reflected);
 }
 
@@ -354,9 +411,9 @@ function trace() {
     // Grid logic -> nRows x nColumns grid
     for (let colIdx = 0; colIdx < nColumns; colIdx++) {
         for (let rowIdx = 0; rowIdx < nRows; rowIdx++) {
-          let p = vec4(2 * (rowIdx / nRows) - 1.0, 1.0 - 2 * (colIdx / nColumns),-2.0, 1.0);
+          let p = vec3(2 * (rowIdx / nRows) - 1.0, 1.0 - 2 * (colIdx / nColumns),-1.0);
           let d = normalize(subtract(p, eye));
-          let color = rayTrace(eye, d, lights[0],0);
+          let color = rayTrace(p, d, lights[0],0);
           data[(colIdx * nRows + rowIdx) * 3] = 255 * color[0];
           data[(colIdx * nRows + rowIdx) * 3 + 1] = 255 * color[1];
           data[(colIdx * nRows + rowIdx) * 3 + 2] = 255 * color[2];
@@ -376,6 +433,11 @@ function init() {
     // Connecting Shaders
     program = initShaders(gl, "vertex-shader", "fragment-shader");
     gl.useProgram( program );
+
+    document.getElementById("download-button").addEventListener("click", function () {
+        data = createSaveJSON();
+        saveData(data);
+    });
 
     // Texture vertices
     let pointsArray = [];
@@ -441,8 +503,6 @@ function render() {
     );
 
     gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
-
-    //requestAnimFrame(render);
 }
 
 window.onload = init;

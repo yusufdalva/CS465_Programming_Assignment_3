@@ -28,14 +28,14 @@ class Light {
 class Cube{
     constructor(center, sideLength){
         this.vertices = [
-            vec4( -sideLength/2 + center[0], -sideLength/2 + center[1],  sideLength/2 + center[2], 1.0 ),
-            vec4( -sideLength/2 + center[0],  sideLength/2 + center[1],  sideLength/2 + center[2], 1.0 ),
-            vec4(  sideLength/2 + center[0],  sideLength/2 + center[1],  sideLength/2 + center[2], 1.0 ),
-            vec4(  sideLength/2 + center[0], -sideLength/2 + center[1],  sideLength/2 + center[2], 1.0 ),
-            vec4( -sideLength/2 + center[0], -sideLength/2 + center[1], -sideLength/2 + center[2], 1.0 ),
-            vec4( -sideLength/2 + center[0],  sideLength/2 + center[1], -sideLength/2 + + center[2], 1.0 ),
-            vec4(  sideLength/2 + center[0],  sideLength/2 + center[1], -sideLength/2 + center[2], 1.0 ),
-            vec4(  sideLength/2 + center[0], -sideLength/2 + center[1], -sideLength/2 + center[2], 1.0 )
+            vec3( -sideLength/2 + center[0], -sideLength/2 + center[1],  sideLength/2 + center[2]),
+            vec3( -sideLength/2 + center[0],  sideLength/2 + center[1],  sideLength/2 + center[2]),
+            vec3(  sideLength/2 + center[0],  sideLength/2 + center[1],  sideLength/2 + center[2]),
+            vec3(  sideLength/2 + center[0], -sideLength/2 + center[1],  sideLength/2 + center[2]),
+            vec3( -sideLength/2 + center[0], -sideLength/2 + center[1], -sideLength/2 + center[2]),
+            vec3( -sideLength/2 + center[0],  sideLength/2 + center[1], -sideLength/2 + + center[2]),
+            vec3(  sideLength/2 + center[0],  sideLength/2 + center[1], -sideLength/2 + center[2]),
+            vec3(  sideLength/2 + center[0], -sideLength/2 + center[1], -sideLength/2 + center[2])
         ];
         this.sides = [];
         this.sides[0] = (new Quad(this.vertices[1],this.vertices[0],this.vertices[3],this.vertices[2]));
@@ -53,13 +53,9 @@ class Quad{
         this.b = b1;
         this.c = c1;
         this.d = d1;
-        this.planeNormal =normalize(cross(subtract(this.b,this.a),subtract(this.c,this.b)));
-        this.planeNormal = vec4(this.planeNormal,0);
-        console.log("FIRSST PLANE NORMAL ",this.planeNormal);
+        this.planeNormal =cross(subtract(this.b,this.a),subtract(this.c,this.b));
         //D is point on plane
-        this.D =vec4((this.a[0]+this.c[0])/2,(this.a[1]+this.c[1])/2,(this.a[2]+this.c[2])/2,1);
-        console.log("D is ",this.D);
-        console.log("dot is ",dot(subtract(this.a,this.D),this.planeNormal));
+        this.D =vec3((this.a[0]+this.c[0])/2,(this.a[1]+this.c[1])/2,(this.a[2]+this.c[2])/2);
     }
 }
 
