@@ -14,7 +14,7 @@ let phi    = 0.0;
 // LookAt parameters - Camera location
 //let eye = vec4(radius*Math.sin(theta)*Math.cos(phi),
   //  radius*Math.sin(theta)*Math.sin(phi), radius*Math.cos(theta), 1.0);
-let eye = vec4(0.5,0.5,-3.0,1.0);
+let eye = vec4(0.0, 0.0,-3.0,1.0);
 let at = vec3(0.0, 0.0, 0.0);
 let up = vec3(0.0, 1.0, 0.0);
 
@@ -27,16 +27,16 @@ let data = new Uint8ClampedArray(nRows * nColumns * 3);
 
 // List of available materials
 let materials = [
-    new Material(vec4( 0.5, 1.0, 1.0, 1.0 ), vec4( 0.2, 0.5, 0.3, 1.0), vec4( 0.8, 0.9, 0.7, 1.0 ), 50.0, 0.9),
-    new Material(vec4( 0.5, 1.0, 1.0, 1.0 ), vec4( 0.0, 0.2, 1.0, 1.0), vec4( 0.3, 0.9, 0.7, 1.0 ), 3.0, 0.9),
+    new Material(vec4( 0.5, 1.0, 1.0, 1.0 ), vec4( 0.2, 0.5, 0.3, 1.0), vec4( 0.8, 0.9, 0.7, 1.0 ), 50.0, 0.2),
+    new Material(vec4( 0.5, 1.0, 1.0, 1.0 ), vec4( 0.0, 0.2, 1.0, 1.0), vec4( 0.3, 0.9, 0.7, 1.0 ), 50.0, 0.9),
     new Material(vec4( 0.5, 1.0, 1.0, 1.0 ), vec4( 0.8, 0.0, 0.5, 1.0), vec4( 0.3, 0.3, 0.7, 1.0 ), 10.0, 0.9)
 ];
 
 // Objects present in the scene
-let cube = new Cube(vec3(0.0, 0.0, 0.0), 0.5);
 let objects = [
     new Primitive("sphere", new Sphere(vec3(-1.5, 0.0, 0.0), 0.5), 2),
     new Primitive("cube", new Cube(vec3(0.0, 0.0, 0.0), 0.5), 1),
+    new Primitive("cone", new Cone(vec3(0.0,0.0, 0.0), 0.5, 1.0), 0),
     new Primitive("cone", new Cone(vec3(1.5,0.0, 0.0), 0.5, 1.0), 0)
 ];
 
@@ -46,7 +46,7 @@ let lights = [
 ];
 
 // Ray tracing iteration limit
-const iterLimit = 1;
+const iterLimit = 3;
 // Background Color
 const backgroundColor = vec4(0.8, 0.8, 0.8, 1.0);
 // Intersection threshold
@@ -84,36 +84,45 @@ function getSphereIntersection(p, d, r, center) {
 function getConeIntersection(p, d, center, r, h) {
   // Cone eqn: (x^2 + z^2) / c^2 = (y - h)^2
   // c = r/h
-  let yend = center[1] +h ;
-  let x = p[0] - center[0];
-  let y = p[1] - (center[1]+h);
-  let z = p[2] - center[2];
-  let hSquare = Math.pow(h, 2);
-  let rSquare = Math.pow(r, 2);
-  let a = hSquare * (Math.pow(d[0], 2) + Math.pow(d[2], 2)) - rSquare * Math.pow(d[1], 2);
-  let b = hSquare * (2 * x * d[0] + 2 * z * d[2]) - rSquare * (2 * y * d[1]);
-  let c = hSquare * (Math.pow(x, 2) + Math.pow(z, 2)) - rSquare * Math.pow(y, 2);
-  let delta = Math.pow(b, 2) - 4 * a * c;
-  if (delta < 0) {
-      return null;
-  }
-  let t1, t2;
-  t1 = (-b + Math.sqrt(delta)) / (2 * a);
-  t2 = (-b - Math.sqrt(delta)) / (2 * a);
-  if (t1 < 0 && t2 < 0) {
-      return null;
-  }
-  let nearest = Math.min(t1, t2);
-  let result;
-  if (nearest > 0) {
-      result = nearest;
-  }
-  result = Math.max(t1, t2);
-  let yDiff = (p[1] + result * d[1]) - center[1];
-  if ((yDiff * yDiff) > (h * h)) {
-      return null;
-  }
-  return result;
+    if (!h) {
+        return null;
+    }
+    let k = r / h;
+    let x = p[0] - center[0];
+    let y = p[1] - center[1];
+    let z = p[2] - center[2];
+    let a = Math.pow(d[0], 2) + Math.pow(d[2], 2) - (Math.pow(k, 2) * Math.pow(d[1], 2));
+    let b = 2 * (d[0] * x + d[2] * z - Math.pow(k, 2) * y * d[1]);
+    let c = (x * x) + (z * z) + ((k * k) * (y * y));
+    let delta = Math.pow(b, 2) - 4 * a * c;
+    if (delta < 0) {
+        return null;
+    }
+    let t1, t2;
+    t1 = (-b + Math.sqrt(delta)) / (2 * a);
+    t2 = (-b - Math.sqrt(delta)) / (2 * a);
+    if (t1 < 0 && t2 < 0) {
+        return null;
+    }
+    let nearest = Math.min(t1, t2);
+    let result;
+    if (nearest > 0) {
+        result = nearest;
+    } else {
+        result = Math.max(t1, t2);
+    }
+    let intersect = add(p, scale(result, d));
+    let yDiff = intersect[1] - center[1];
+    if (yDiff > 0) {
+        return null;
+    }
+    if (!yDiff) {
+        return [result, vec4(0, -1, 0, 1.0)];
+    }
+    if ((yDiff * yDiff) > (h * h)) {
+        return null;
+    }
+    return [result, vec4(intersect[0], Math.sqrt(intersect[0] * intersect[0] + intersect[2] * intersect[2]) * k, intersect[2])];
 }
 
 // Tests whether the point is inside a triangle - for polygonal prism in app
@@ -289,11 +298,11 @@ function findClosestIntersection(origin, dirVector) {
         if(objects[objIdx].type === "cone") {
           let distance = getConeIntersection(origin, dirVector, objects[objIdx].objData.center, objects[objIdx].objData.radius, objects[objIdx].objData.height);
           if (distance !== null) {
-              if (distance < t) {
-                  t = distance;
+              if (distance[0] < t) {
+                  t = distance[0];
                   closestObject = objects[objIdx];
                   point = add(origin, scale(t, dirVector));
-                  normal = point; // Will change this
+                  normal = distance[1]; // Will change this
                   intersection = {
                       point: point,
                       type: closestObject.type,
@@ -328,13 +337,15 @@ function rayTrace(origin, dirVector, light, iterCount) {
     }
     let normal = intersection.normal;
     let reflection = reflect(intersection.point, normalize(normal), origin);
-    //let transmission= transmit(intersection.point, normalize(normal), origin, 1.0, intersection.material.density);
 
     // point, rayOrigin, normal, reflection, material, light
     let local = phong(intersection.point, origin, normal, reflection, intersection.material, light);
     let reflected = rayTrace(intersection.point, reflection, light,iterCount + 1);
-    //let transmitted = rayTrace(intersection.point, transmission, light,iterCount + 1);
-
+    if (intersection.type !== "cube") {
+        let transmission= transmit(intersection.point, normalize(normal), origin, 1.0, intersection.material.density);
+        let transmitted = rayTrace(intersection.point, transmission, light,iterCount + 1);
+        return add(add(local, reflected), transmitted);
+    }
     return add(local, reflected);
 }
 
