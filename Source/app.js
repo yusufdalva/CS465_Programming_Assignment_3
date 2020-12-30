@@ -90,10 +90,13 @@ function createSaveJSON() {
                 height: objects[i].objData.height
             }
         } else if (shape.type === "cube") {
+            console.log("HERE");
+            console.log(objects[i].objData);
             shape.objData = {
                 center: objects[i].objData.center,
                 sideLength: objects[i].objData.sideLength
-            }
+            };
+            console.log(shape.objData);
         }
         shapes.push(shape);
     }
@@ -103,6 +106,32 @@ function createSaveJSON() {
         lights: light,
         shapes: shapes
     };
+}
+
+function parseData(data) {
+    let json = JSON.parse(data.toString());
+    eye = vec3(json.cop);
+    materials = [];
+    for (let i = 0; i < json.materials.length; i++) {
+        materials.push(new Material(json.materials[i].ambient, json.materials[i].diffuse,
+            json.materials[i].specular, json.materials[i].shininess, json.materials[i].density));
+    }
+    lights = [];
+    for (let i = 0; i < json.lights.length; i++) {
+        lights.push(new Light(json.lights[i].position, json.lights[i].ambient, json.lights[i].diffuse, json.lights[i].specular));
+    }
+    objects = [];
+    for (let i = 0; i < json.shapes.length; i++) {
+        let obj;
+        if (json.shapes[i].type === "sphere") {
+            obj = new Sphere(json.shapes[i].objData.center, json.shapes[i].objData.radius);
+        } else if (json.shapes[i].type === "cone") {
+            obj = new Cone(json.shapes[i].objData.center, json.shapes[i].objData.radius, json.shapes[i].objData.height);
+        } else if (json.shapes[i].type === "cube") {
+            obj = new Cube(json.shapes[i].objData.center, json.shapes[i].objData.sideLength);
+        }
+        objects.push(new Primitive(json.shapes[i].type, obj, json.shapes[i].materialIdx));
+    }
 }
 
 function saveData(data) {
@@ -434,11 +463,6 @@ function init() {
     program = initShaders(gl, "vertex-shader", "fragment-shader");
     gl.useProgram( program );
 
-    document.getElementById("download-button").addEventListener("click", function () {
-        data = createSaveJSON();
-        saveData(data);
-    });
-
     // Texture vertices
     let pointsArray = [];
     let texCoords = [];
@@ -482,6 +506,31 @@ function init() {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+
+    document.getElementById("download-button").addEventListener("click", function () {
+        data = createSaveJSON();
+        saveData(data);
+    });
+
+    let loadButton = document.getElementById("upload-button");
+    loadButton.addEventListener("input", function () {
+        let reader = new FileReader();
+        let data = loadButton.files[0];
+        reader.readAsText(data);
+        reader.onload = function () {
+            parseData(reader.result);
+            texture = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+            // Texture Parameters
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+            render();
+            alert("LOADED");
+        }
+    });
 
     render();
 }

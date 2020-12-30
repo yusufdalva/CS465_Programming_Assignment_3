@@ -27,6 +27,8 @@ class Light {
 
 class Cube{
     constructor(center, sideLength){
+        this.center = center;
+        this.sideLength = sideLength;
         this.vertices = [
             vec3( -sideLength/2 + center[0], -sideLength/2 + center[1],  sideLength/2 + center[2]),
             vec3( -sideLength/2 + center[0],  sideLength/2 + center[1],  sideLength/2 + center[2]),
